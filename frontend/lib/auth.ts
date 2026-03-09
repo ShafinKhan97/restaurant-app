@@ -6,6 +6,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 interface AuthUser {
   id: string;
   email: string;
+  name?: string | null;
   role: string;
   restaurantId?: string;
   accessToken: string;
@@ -16,6 +17,7 @@ declare module "next-auth" {
     user: {
       id: string;
       email: string;
+      name?: string | null;
       role: string;
       restaurantId?: string;
     };
@@ -26,6 +28,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
+    name?: string | null;
     role: string;
     restaurantId?: string;
     accessToken: string;
@@ -74,6 +77,7 @@ export const authOptions: NextAuthOptions = {
             const user: AuthUser = {
               id: data.user.id,
               email: data.user.email,
+              name: data.user.firstName ? `${data.user.firstName} ${data.user.lastName}` : data.user.name,
               role: data.user.role,
               restaurantId: data.user.restaurantId,
               accessToken: data.token,
@@ -97,6 +101,7 @@ export const authOptions: NextAuthOptions = {
         const u = user as AuthUser;
 
         token.id = u.id;
+        token.name = u.name;
         token.role = u.role;
         token.restaurantId = u.restaurantId;
         token.accessToken = u.accessToken;
@@ -108,6 +113,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id;
+        session.user.name = token.name;
         session.user.role = token.role;
         session.user.restaurantId = token.restaurantId;
       }
