@@ -8,7 +8,6 @@ import {
   FaChartPie, 
   FaUser, 
   FaUtensils, 
-  FaTags,
   FaPercent,
   FaSignOutAlt,
   FaBars,
@@ -27,7 +26,6 @@ export default function DashboardLayout({
   const navigation = [
     { name: 'Overview', href: '/dashboard', icon: FaChartPie },
     { name: 'Menu Items', href: '/dashboard/items', icon: FaUtensils },
-    { name: 'Item Sizes', href: '/dashboard/sizes', icon: FaTags },
     { name: 'Discounts', href: '/dashboard/discounts', icon: FaPercent },
     { name: 'Admin Profile', href: '/dashboard/profile', icon: FaUser },
   ];
@@ -119,9 +117,9 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        {/* Dynamic Page Content - Fixed and unscrollable */}
-        <main className="flex-1 overflow-hidden bg-brand-base p-4 sm:p-6 lg:p-8">
-          <div className="max-w-5xl mx-auto h-full">
+        {/* Dynamic Page Content */}
+        <main className="flex-1 overflow-y-auto bg-brand-base p-4 sm:p-6 lg:p-8">
+          <div className="max-w-5xl mx-auto">
             {children}
           </div>
         </main>

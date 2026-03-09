@@ -1,66 +1,107 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import Link from 'next/link';
-import { FaUserEdit, FaUtensils, FaTags, FaPercent } from 'react-icons/fa';
+import { FaCheckCircle, FaRegCircle, FaInfoCircle } from 'react-icons/fa';
 import FadeIn from '@/components/ui/FadeIn';
 
 export default function DashboardOverviewPage() {
   const { data: session } = useSession();
 
-  const actions = [
-    {
-      title: 'Menu Items',
-      description: 'Add or modify dishes to your menu',
-      href: '/dashboard/items',
-      icon: FaUtensils,
-    },
-    {
-      title: 'Item Sizes',
-      description: 'Create Small, Medium, Large sizes',
-      href: '/dashboard/sizes',
-      icon: FaTags,
-    },
-    {
-      title: 'Discounts',
-      description: 'Apply percentage or flat amount discounts',
-      href: '/dashboard/discounts',
-      icon: FaPercent,
-    },
-    {
-      title: 'Admin Profile',
-      description: 'Update your name, email, and password',
-      href: '/dashboard/profile',
-      icon: FaUserEdit,
-    },
+  // A simple checklist to guide the admin
+  const checklist = [
+    { title: 'Update your profile information', completed: true },
+    { title: 'Create Menu Items', completed: false },
+    { title: 'Setup active Discounts', completed: false },
   ];
 
+  const completedCount = checklist.filter((item) => item.completed).length;
+  const progressPercentage = (completedCount / checklist.length) * 100;
+
   return (
-    <div>
+    <div className="max-w-4xl mx-auto">
       <FadeIn delay={0.1} direction="down">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-          Admin Dashboard
-        </h1>
-        <p className="text-gray-400 mb-8">
-          Welcome back, {session?.user?.name || 'Admin'}! What would you like to manage?
-        </p>
+        {/* Welcome Banner */}
+        <div className="bg-gradient-to-r from-brand-surface to-brand-elevated border border-brand-border rounded-2xl p-6 mb-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-extrabold text-white mb-1 tracking-tight">
+                Welcome back, {session?.user?.name || 'Admin'}! 👋
+              </h1>
+              <p className="text-gray-400 text-base">
+                Your digital menu control center is ready. What's on the menu today?
+              </p>
+            </div>
+            
+            <div className="bg-brand-base border border-brand-border p-3 rounded-xl flex items-center gap-3 shrink-0">
+              <div className="w-12 h-12 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xl">
+                {session?.user?.name?.charAt(0) || 'A'}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-400">Current Role</p>
+                <p className="text-white font-semibold capitalize">{session?.user?.role?.replace('_', ' ').toLowerCase() || 'Administrator'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </FadeIn>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {actions.map((action, index) => (
-          <FadeIn key={action.title} delay={0.2 + index * 0.1} direction="up">
-            <Link 
-              href={action.href}
-              className="bg-brand-surface border border-brand-border hover:border-primary/50 rounded-xl p-6 shadow-sm flex flex-col items-center text-center transition-colors group h-full"
-            >
-              <div className="w-16 h-16 bg-brand-base border border-brand-elevated rounded-full flex items-center justify-center text-white mb-4 group-hover:bg-primary group-hover:text-white transition-colors">
-                <action.icon className="w-6 h-6" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        
+        {/* Getting Started Checklist */}
+        <div className="lg:col-span-2">
+          <FadeIn delay={0.2} direction="up" className="bg-brand-surface border border-brand-border rounded-xl p-5 h-full">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-white mb-1">Getting Started</h2>
+              <p className="text-sm text-gray-400">Complete these steps to set up your restaurant menu.</p>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="mb-4">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-gray-400">Setup Progress</span>
+                <span className="text-primary font-bold">{Math.round(progressPercentage)}%</span>
               </div>
-              <h2 className="text-xl font-bold text-white mb-2">{action.title}</h2>
-              <p className="text-sm text-gray-400">{action.description}</p>
-            </Link>
+              <div className="w-full bg-brand-base rounded-full h-2.5">
+                <div 
+                  className="bg-primary h-2.5 rounded-full transition-all duration-500 ease-out" 
+                  style={{ width: `${progressPercentage}%` }}
+                ></div>
+              </div>
+            </div>
+
+            <ul className="space-y-2">
+              {checklist.map((item, index) => (
+                <li key={index} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-brand-base transition-colors">
+                  {item.completed ? (
+                    <FaCheckCircle className="text-green-500 w-4 h-4 shrink-0" />
+                  ) : (
+                    <FaRegCircle className="text-gray-500 w-4 h-4 shrink-0" />
+                  )}
+                  <span className={`text-sm font-medium ${item.completed ? 'text-gray-500 line-through' : 'text-gray-200'}`}>
+                    {item.title}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </FadeIn>
-        ))}
+        </div>
+
+        {/* System Info / Tips */}
+        <div className="lg:col-span-1">
+          <FadeIn delay={0.3} direction="up" className="bg-brand-elevated border border-primary/20 rounded-xl p-5 h-full flex flex-col items-center text-center justify-center">
+             <FaInfoCircle className="w-8 h-8 text-primary mb-3" />
+             <h3 className="font-bold text-white mb-1.5 text-base">Did you know?</h3>
+             <p className="text-xs text-gray-400 leading-relaxed mb-4">
+               Adding images and descriptive names to your menu items can increase customer orders by up to 30%.
+             </p>
+             <div className="px-3 py-1.5 bg-brand-base rounded-lg text-xs text-gray-500 border border-brand-border">
+               System Version: 1.0.0
+             </div>
+          </FadeIn>
+        </div>
+
       </div>
     </div>
   );
