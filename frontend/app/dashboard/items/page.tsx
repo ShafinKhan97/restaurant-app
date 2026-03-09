@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FaPlus, FaPencilAlt, FaTrash, FaImage, FaSearch, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import FadeIn from '@/components/ui/FadeIn';
@@ -13,10 +13,34 @@ const initialItems = [
 ];
 
 export default function MenuItemsPage() {
-  const [items, setItems] = useState(initialItems);
+  const [items, setItems] = useState<any[]>([]);
+  const [discounts, setDiscounts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   
+  // Load data from local storage on mount
+  useEffect(() => {
+    const savedItems = localStorage.getItem('qr-menu-items');
+    if (savedItems) {
+      setItems(JSON.parse(savedItems));
+    } else {
+      setItems(initialItems);
+      localStorage.setItem('qr-menu-items', JSON.stringify(initialItems));
+    }
+
+    const savedDiscounts = localStorage.getItem('qr-menu-discounts');
+    if (savedDiscounts) {
+      setDiscounts(JSON.parse(savedDiscounts));
+    }
+  }, []);
+
+  // Save to local storage whenever items change
+  useEffect(() => {
+    if (items.length > 0) {
+      localStorage.setItem('qr-menu-items', JSON.stringify(items));
+    }
+  }, [items]);
+
   // Get unique categories dynamically
   const categories = ['All', ...Array.from(new Set(items.map(item => item.category)))];
   
@@ -25,7 +49,7 @@ export default function MenuItemsPage() {
   const [isEditing, setIsEditing] = useState(false);
   
   // Form state
-  const [formData, setFormData] = useState({ id: 0, name: '', description: '', price: '', category: '' });
+  const [formData, setFormData] = useState({ id: 0, name: '', description: '', price: '', category: '', discountId: '' });
 
   const filteredItems = items.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -41,14 +65,15 @@ export default function MenuItemsPage() {
       name: '', 
       description: '', 
       price: '', 
-      category: activeCategory === 'All' ? '' : activeCategory 
+      category: activeCategory === 'All' ? '' : activeCategory,
+      discountId: ''
     });
     setIsEditing(false);
     setIsModalOpen(true);
   };
 
   const openEditModal = (item: any) => {
-    setFormData({ ...item, price: item.price.toString() });
+    setFormData({ ...item, price: item.price.toString(), discountId: item.discountId || '' });
     setIsEditing(true);
     setIsModalOpen(true);
   };
@@ -162,8 +187,39 @@ export default function MenuItemsPage() {
                 <div className="p-5 flex flex-col flex-1">
                   <div className="flex justify-between items-start mb-2 gap-4">
                     <h3 className="text-lg font-bold text-white leading-tight">{item.name}</h3>
-                    <span className="text-primary font-bold whitespace-nowrap">${Number(item.price).toFixed(2)}</span>
+                    
+                    {/* Price with possible discount logic inline */}
+                    <div className="text-right">
+                      {(() => {
+                        const appliedDiscount = item.discountId 
+                          ? discounts.find(d => d.id.toString() === item.discountId.toString() && d.active) 
+                          : null;
+                        
+                        if (appliedDiscount) {
+                          const discountedPrice = appliedDiscount.type === 'percentage' 
+                            ? Number(item.price) - (Number(item.price) * (appliedDiscount.value / 100))
+                            : Math.max(0, Number(item.price) - appliedDiscount.value);
+                            
+                          return (
+                            <div className="flex flex-col items-end">
+                              <span className="text-gray-500 line-through text-xs font-medium">${Number(item.price).toFixed(2)}</span>
+                              <span className="text-green-400 font-bold whitespace-nowrap">${discountedPrice.toFixed(2)}</span>
+                            </div>
+                          );
+                        }
+                        return <span className="text-primary font-bold whitespace-nowrap">${Number(item.price).toFixed(2)}</span>;
+                      })()}
+                    </div>
                   </div>
+                  
+                  {/* Badge if discount is applied */}
+                  {item.discountId && discounts.find(d => d.id.toString() === item.discountId.toString() && d.active) && (
+                    <div className="mb-2">
+                       <span className="inline-block bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded border border-green-500/20 font-medium">
+                         {discounts.find(d => d.id.toString() === item.discountId.toString())?.name} Applied
+                       </span>
+                    </div>
+                  )}
                   
                   <p className="text-sm text-gray-400 mb-6 flex-1 line-clamp-3">
                     {item.description}
@@ -247,6 +303,23 @@ export default function MenuItemsPage() {
                       placeholder="0.00"
                     />
                   </div>
+                </div>
+
+                {/* Discount Select */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Apply Discount</label>
+                  <select
+                    value={formData.discountId}
+                    onChange={e => setFormData({...formData, discountId: e.target.value})}
+                    className="w-full px-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:border-primary appearance-none"
+                  >
+                    <option value="">No Discount</option>
+                    {discounts.filter(d => d.active).map(d => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} ({d.type === 'percentage' ? `${d.value}% Off` : `$${d.value.toFixed(2)} Off`})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

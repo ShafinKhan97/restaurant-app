@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FaPlus, FaPencilAlt, FaTrash, FaPercent, FaTimes, FaDollarSign } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import FadeIn from '@/components/ui/FadeIn';
@@ -12,7 +12,25 @@ const initialDiscounts = [
 ];
 
 export default function DiscountsPage() {
-  const [discounts, setDiscounts] = useState(initialDiscounts);
+  const [discounts, setDiscounts] = useState<any[]>([]);
+  
+  // Load from local storage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('qr-menu-discounts');
+    if (saved) {
+      setDiscounts(JSON.parse(saved));
+    } else {
+      setDiscounts(initialDiscounts);
+      localStorage.setItem('qr-menu-discounts', JSON.stringify(initialDiscounts));
+    }
+  }, []);
+
+  // Save to local storage whenever discounts change
+  useEffect(() => {
+    if (discounts.length > 0) {
+      localStorage.setItem('qr-menu-discounts', JSON.stringify(discounts));
+    }
+  }, [discounts]);
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
