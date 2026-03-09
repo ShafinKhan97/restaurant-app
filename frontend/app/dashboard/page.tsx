@@ -10,8 +10,8 @@ export default function DashboardOverviewPage() {
   // A simple checklist to guide the admin
   const checklist = [
     { title: 'Update your profile information', completed: true },
-    { title: 'Create Menu Items', completed: false },
-    { title: 'Setup active Discounts', completed: false },
+    { title: 'Create Menu Items', completed: true },
+    { title: 'Setup active Discounts', completed: true },
   ];
 
   const completedCount = checklist.filter((item) => item.completed).length;
