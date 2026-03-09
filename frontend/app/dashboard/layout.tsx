@@ -119,9 +119,9 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        {/* Dynamic Page Content - This part scrolls */}
-        <main className="flex-1 overflow-y-auto bg-brand-base p-4 sm:p-6 lg:p-8">
-          <div className="max-w-5xl mx-auto">
+        {/* Dynamic Page Content - Fixed and unscrollable */}
+        <main className="flex-1 overflow-hidden bg-brand-base p-4 sm:p-6 lg:p-8">
+          <div className="max-w-5xl mx-auto h-full">
             {children}
           </div>
         </main>
