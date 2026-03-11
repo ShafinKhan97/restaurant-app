@@ -1,18 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/context/AuthContext';
 import { FaUser, FaEnvelope, FaLock, FaSpinner, FaSave } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import FadeIn from '@/components/ui/FadeIn';
 
 export default function AdminProfilePage() {
-  const { data: session, update } = useSession();
+  const { user, updateUser } = useAuth();
   
   // States for profile form
   const [profileData, setProfileData] = useState({
-    name: session?.user?.name || 'Admin User',
-    email: session?.user?.email || 'admin@example.com',
+    name: user?.name || 'Admin User',
+    email: user?.email || 'admin@example.com',
   });
   
   // States for password form
@@ -33,15 +33,7 @@ export default function AdminProfilePage() {
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Attempt to update next-auth session locally (requires NextAuth configured properly for it)
-      await update({
-        ...session,
-        user: {
-          ...session?.user,
-          name: profileData.name,
-          email: profileData.email,
-        }
-      });
+      updateUser({ name: profileData.name, email: profileData.email });
       
       toast.success('Profile information updated successfully');
     } catch (error) {
@@ -229,7 +221,7 @@ export default function AdminProfilePage() {
             <div className="w-full bg-brand-base border border-brand-border rounded-lg p-3 text-sm flex justify-between items-center mb-6">
               <span className="text-gray-400">Account Role</span>
               <span className="font-semibold text-white capitalize">
-                {session?.user?.role?.replace('_', ' ').toLowerCase() || 'Administrator'}
+                {user?.role?.replace('_', ' ').toLowerCase() || 'Administrator'}
               </span>
             </div>
 

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { signOut, useSession } from 'next-auth/react';
+import { useAuth } from '@/context/AuthContext';
 import { 
   FaChartPie, 
   FaUser, 
@@ -20,7 +20,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { user, logout } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const navigation = [
@@ -84,14 +84,14 @@ export default function DashboardLayout({
 
         {/* Bottom Profile / Logout Area */}
         <div className="p-4 border-t border-brand-border shrink-0">
-          {session && (
+          {user && (
             <div className="mb-4 px-2">
-              <p className="text-sm font-medium text-white truncate">{session.user?.name || 'Admin User'}</p>
-              <p className="text-xs text-gray-500 truncate">{session.user?.email}</p>
+              <p className="text-sm font-medium text-white truncate">{user.name || 'Admin User'}</p>
+              <p className="text-xs text-gray-500 truncate">{user.email}</p>
             </div>
           )}
           <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
+            onClick={() => logout()}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-500 hover:text-white hover:bg-red-500/20 transition-colors"
           >
             <FaSignOutAlt className="w-5 h-5" />

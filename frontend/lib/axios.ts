@@ -1,7 +1,7 @@
 // frontend/lib/axios.ts
 
 import axios, { InternalAxiosRequestConfig } from "axios";
-import { getSession, signOut } from "next-auth/react";
+
 
 const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api",
@@ -15,10 +15,10 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     if (typeof window !== "undefined") {
-      const session = await getSession();
+      const token = localStorage.getItem('qr-menu-token');
 
-      if (session?.accessToken && config.headers) {
-        config.headers.Authorization = `Bearer ${session.accessToken}`;
+      if (token && config.headers) {
+        config.headers.Authorization = `Bearer ${token}`;
       }
     }
 
@@ -40,7 +40,9 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       if (typeof window !== "undefined") {
-        await signOut({ callbackUrl: "/login" });
+        localStorage.removeItem('qr-menu-token');
+        localStorage.removeItem('qr-menu-user');
+        window.location.href = '/login';
       }
     }
 

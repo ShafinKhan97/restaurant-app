@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
+import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
@@ -10,6 +10,7 @@ import { FaSpinner } from 'react-icons/fa';
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
   const [formData, setFormData] = useState({ email: '', password: '' });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -17,23 +18,45 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Use next-auth signIn for credentials provider
-      const res = await signIn('credentials', {
-        redirect: false,
-        email: formData.email,
-        password: formData.password,
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
       });
 
-      if (res?.error) {
-        toast.error('Invalid email or password');
-      } else {
+      const data = await res.json();
+
+      if (res.ok && data?.success && data?.user && data?.token) {
+        const user = {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.firstName ? `${data.user.firstName} ${data.user.lastName}` : data.user.name,
+          role: data.user.role,
+          restaurantId: data.user.restaurantId,
+          accessToken: data.token,
+        };
+
+        login(data.token, user);
         toast.success('Logged in successfully');
-        // Once session is generated, redirect to the dashboard
-        // A single login page handles all roles. The role logic will steer them in the dashboard.
-        router.push('/dashboard');
+        
+        // Redirect based on role
+        if (user.role === 'SUPER_ADMIN') {
+          router.push('/superadmin');
+        } else {
+          router.push('/dashboard');
+        }
+      } else {
+        toast.error(data?.message || 'Invalid email or password');
       }
     } catch (error) {
-      toast.error('Something went wrong during login');
+      toast.error('Unable to connect to server. Please try again.');
     } finally {
       setLoading(false);
     }
