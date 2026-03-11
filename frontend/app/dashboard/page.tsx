@@ -1,11 +1,11 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/context/AuthContext';
 import { FaCheckCircle, FaRegCircle, FaInfoCircle } from 'react-icons/fa';
 import FadeIn from '@/components/ui/FadeIn';
 
 export default function DashboardOverviewPage() {
-  const { data: session } = useSession();
+  const { user } = useAuth();
 
   // A simple checklist to guide the admin
   const checklist = [
@@ -27,7 +27,7 @@ export default function DashboardOverviewPage() {
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-extrabold text-white mb-1 tracking-tight">
-                Welcome back, {session?.user?.name || 'Admin'}! 👋
+                Welcome back, {user?.name || 'Admin'}! 👋
               </h1>
               <p className="text-gray-400 text-base">
                 Your digital menu control center is ready. What's on the menu today?
@@ -36,11 +36,11 @@ export default function DashboardOverviewPage() {
             
             <div className="bg-brand-base border border-brand-border p-3 rounded-xl flex items-center gap-3 shrink-0">
               <div className="w-12 h-12 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xl">
-                {session?.user?.name?.charAt(0) || 'A'}
+                {user?.name?.charAt(0) || 'A'}
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-400">Current Role</p>
-                <p className="text-white font-semibold capitalize">{session?.user?.role?.replace('_', ' ').toLowerCase() || 'Administrator'}</p>
+                <p className="text-white font-semibold capitalize">{user?.role?.replace('_', ' ').toLowerCase() || 'Administrator'}</p>
               </div>
             </div>
           </div>
