@@ -110,6 +110,12 @@ const menuItemSchema = new mongoose.Schema(
 // Compound index for quick lookups
 menuItemSchema.index({ restaurant_id: 1, category_name: 1 });
 
+// Cascade delete: remove all image assets when a menu item is deleted
+menuItemSchema.pre("deleteOne", { document: true, query: false }, async function () {
+  const ImageAsset = mongoose.model("ImageAsset");
+  await ImageAsset.deleteMany({ menu_id: this._id });
+});
+
 const MenuItem = mongoose.model("MenuItem", menuItemSchema);
 
 module.exports = MenuItem;
