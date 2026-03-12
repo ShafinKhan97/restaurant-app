@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { 
   FaGlobe, 
@@ -19,8 +19,27 @@ export default function SuperAdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const router = useRouter();
+  const { user, isLoading, logout } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      if (!user) {
+        router.push('/login');
+      } else if (user.role !== 'SUPER_ADMIN') {
+        router.push('/dashboard');
+      }
+    }
+  }, [user, isLoading, router]);
+
+  if (isLoading || !user || user.role !== 'SUPER_ADMIN') {
+    return (
+      <div className="h-screen flex items-center justify-center bg-brand-base text-primary">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   const navigation = [
     { name: 'Overview', href: '/superadmin', icon: FaGlobe },
