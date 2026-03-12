@@ -15,7 +15,7 @@ export default function FadeIn({ children, delay = 0, direction = 'up', classNam
   
   const getVariants = () => {
     switch (direction) {
-      case 'up':
+      case 'up':                       
         return { hidden: { opacity: 0, y: directionOffset }, visible: { opacity: 1, y: 0 } };
       case 'down':
         return { hidden: { opacity: 0, y: -directionOffset }, visible: { opacity: 1, y: 0 } };

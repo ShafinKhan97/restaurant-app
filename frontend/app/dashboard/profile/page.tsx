@@ -29,11 +29,28 @@ export default function AdminProfilePage() {
     e.preventDefault();
     setIsProfileSaving(true);
     
-    // Simulate API call
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       updateUser({ name: profileData.name, email: profileData.email });
+
+      // Update in our simulated DB
+      if (user) {
+        const users = JSON.parse(localStorage.getItem('qr-menu-users') || '[]');
+        const updatedUsers = users.map((u: any) => {
+          if (u.id === user.id) {
+            return {
+              ...u,
+              firstName: profileData.name.split(' ')[0],
+              lastName: profileData.name.split(' ').slice(1).join(' '),
+              name: profileData.name,
+              email: profileData.email
+            };
+          }
+          return u;
+        });
+        localStorage.setItem('qr-menu-users', JSON.stringify(updatedUsers));
+      }
       
       toast.success('Profile information updated successfully');
     } catch (error) {
@@ -58,14 +75,29 @@ export default function AdminProfilePage() {
 
     setIsPasswordSaving(true);
     
-    // Simulate API call
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
       
+      // Update password in our simulated DB
+      if (user) {
+        const users = JSON.parse(localStorage.getItem('qr-menu-users') || '[]');
+        const updatedUsers = users.map((u: any) => {
+          if (u.id === user.id) {
+            // Verify current password first mockly
+            if (u.password !== passwordData.currentPassword) {
+               throw new Error('Incorrect current password');
+            }
+            return { ...u, password: passwordData.newPassword };
+          }
+          return u;
+        });
+        localStorage.setItem('qr-menu-users', JSON.stringify(updatedUsers));
+      }
+
       toast.success('Password changed successfully');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch (error) {
-      toast.error('Failed to change password');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to change password');
     } finally {
       setIsPasswordSaving(false);
     }
