@@ -24,6 +24,10 @@ app.use(
   "/api/restaurants/:restaurantId/menu-items",
   require("./routes/menuItemRoutes")
 );
+app.use(
+  "/api/restaurants/:restaurantId/menu-items/:menuItemId/image-assets",
+  require("./routes/imageAssetRoutes")
+);
 
 // Public menu route (for QR scan)
 const { getMenuBySlug } = require("./controllers/menuItemController");
