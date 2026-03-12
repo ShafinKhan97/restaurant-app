@@ -119,36 +119,40 @@ export default function PublicMenuPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0d] pb-24 font-sans text-gray-100 flex flex-col items-center">
+    <div className="min-h-screen bg-brand-base pb-24 font-sans text-gray-100 flex flex-col">
       
       {/* Dynamic Header Image / Banner */}
-      <div className="w-full max-w-2xl bg-brand-surface relative overflow-hidden shrink-0 shadow-md">
-        <div className="h-40 sm:h-52 w-full bg-gradient-to-br from-brand-elevated to-brand-surface relative">
-           <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#0a0a0d] to-transparent z-10"></div>
-           {/* Abstract pattern placeholder */}
+      <div className="w-full bg-brand-surface relative shrink-0 shadow-md border-b border-brand-border">
+        <div className="h-48 sm:h-64 w-full bg-gradient-to-br from-brand-elevated to-brand-surface relative overflow-hidden">
+           <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-brand-surface to-transparent z-10"></div>
            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
         </div>
         
-        <div className="px-5 sm:px-8 absolute bottom-0 translate-y-[20%] w-full flex items-end gap-4 z-20">
-           <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-brand-base border-4 border-[#0a0a0d] shadow-lg flex items-center justify-center overflow-hidden shrink-0">
-              <span className="text-3xl sm:text-4xl font-black text-primary tracking-tighter">
-                {restaurantName.substring(0,2).toUpperCase()}
-              </span>
-           </div>
-           <div className="pb-4">
-             <h1 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight drop-shadow-md">{restaurantName}</h1>
-             <p className="text-sm font-medium text-gray-300 drop-shadow flex items-center gap-1.5">
-               <FaStar className="text-yellow-400 w-3.5 h-3.5" /> 4.9 (120+ reviews)
-             </p>
+        {/* Info Container overlapping the banner */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 -mt-12 sm:-mt-16 pb-6">
+           <div className="flex flex-col sm:flex-row sm:items-end gap-5">
+             <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl bg-brand-base border-4 border-brand-surface shadow-xl flex items-center justify-center overflow-hidden shrink-0">
+                <span className="text-4xl sm:text-5xl font-black text-primary tracking-tighter">
+                  {restaurantName.substring(0,2).toUpperCase()}
+                </span>
+             </div>
+             <div className="pb-2">
+               <h1 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight drop-shadow-md mb-2">{restaurantName}</h1>
+               <div className="flex flex-wrap items-center gap-3">
+                 <p className="text-sm font-medium bg-brand-base px-3 py-1.5 rounded-full text-gray-300 drop-shadow border border-brand-border flex items-center gap-1.5 w-fit">
+                   <FaStar className="text-yellow-400 w-3.5 h-3.5" /> 4.9 (120+ reviews)
+                 </p>
+               </div>
+             </div>
            </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="w-full max-w-2xl px-5 sm:px-8 pt-12 flex-1 flex flex-col relative z-0">
+      <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 flex-1 flex flex-col relative z-0">
         
         {/* Search Bar */}
-        <div className="relative mb-6">
+        <div className="relative mb-6 sm:max-w-md">
           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
             <FaSearch className="text-gray-500 w-4 h-4" />
           </div>
@@ -162,14 +166,14 @@ export default function PublicMenuPage() {
         </div>
 
         {/* Horizontal Category Scroll */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-2 scrollbar-none -mx-5 px-5 sm:mx-0 sm:px-0">
-          {categories.map((cat, i) => (
+        <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-4 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+          {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
+              className={`px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all flex-shrink-0 ${
                 activeCategory === cat 
-                  ? 'bg-primary text-white shadow-glow border border-primary scale-105' 
+                  ? 'bg-primary text-white shadow-glow border border-primary' 
                   : 'bg-brand-surface border border-brand-border text-gray-400 hover:text-white hover:bg-brand-elevated'
               }`}
             >
@@ -188,7 +192,7 @@ export default function PublicMenuPage() {
             <p className="text-gray-400 text-sm max-w-[250px]">Try adjusting your search or category filter to find what you're looking for.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pb-8">
             {filteredItems.map((item, index) => {
               const { finalPrice, originalPrice, hasDiscount, appliedDiscountName } = getCalculatedPrice(item);
               const cartItem = cart.find(c => c.item.id === item.id);
