@@ -39,7 +39,16 @@ export default function MenuItemsPage() {
   const [isEditing, setIsEditing] = useState(false);
   
   // Form state
-  const [formData, setFormData] = useState({ id: 0, name: '', description: '', price: '', category: '', discountId: '' });
+  // New field imageBase64 to store the uploaded image
+  const [formData, setFormData] = useState({ 
+    id: 0, 
+    name: '', 
+    description: '', 
+    price: '', 
+    category: '', 
+    discountId: '',
+    imageBase64: '' 
+  });
 
   const filteredItems = items.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -56,14 +65,20 @@ export default function MenuItemsPage() {
       description: '', 
       price: '', 
       category: activeCategory === 'All' ? '' : activeCategory,
-      discountId: ''
+      discountId: '',
+      imageBase64: ''
     });
     setIsEditing(false);
     setIsModalOpen(true);
   };
 
   const openEditModal = (item: any) => {
-    setFormData({ ...item, price: item.price.toString(), discountId: item.discountId || '' });
+    setFormData({ 
+      ...item, 
+      price: item.price.toString(), 
+      discountId: item.discountId || '',
+      imageBase64: item.imageBase64 || '' 
+    });
     setIsEditing(true);
     setIsModalOpen(true);
   };
@@ -106,6 +121,17 @@ export default function MenuItemsPage() {
       toast.success('New item added to menu');
     }
     setIsModalOpen(false);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, imageBase64: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
@@ -166,10 +192,14 @@ export default function MenuItemsPage() {
             <FadeIn key={item.id} delay={0.3 + index * 0.1} direction="up">
               <div className="bg-brand-surface border border-brand-border rounded-xl overflow-hidden hover:border-primary/50 transition-colors flex flex-col h-full">
                 
-                {/* Mock Image Area */}
-                <div className="h-40 bg-brand-elevated flex items-center justify-center border-b border-brand-border relative group p-4 text-center">
-                  <FaImage className="w-12 h-12 text-gray-600 mb-2 opacity-50" />
-                  <span className="absolute top-3 right-3 bg-brand-base/80 backdrop-blur-sm border border-brand-border px-2.5 py-1 rounded-md text-xs font-semibold text-primary">
+                {/* Functional Image Area */}
+                <div 
+                  className="h-40 bg-brand-elevated flex items-center justify-center border-b border-brand-border relative group p-4 text-center bg-cover bg-center"
+                  style={{ backgroundImage: item.imageBase64 ? `url(${item.imageBase64})` : 'none' }}
+                >
+                  {!item.imageBase64 && <FaImage className="w-12 h-12 text-gray-600 mb-2 opacity-50" />}
+                  {item.imageBase64 && <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors"></div>}
+                  <span className="absolute top-3 right-3 bg-brand-base/80 backdrop-blur-sm border border-brand-border px-2.5 py-1 rounded-md text-xs font-semibold text-primary z-10">
                     {item.category}
                   </span>
                 </div>
@@ -324,16 +354,38 @@ export default function MenuItemsPage() {
                   />
                 </div>
                 
-                {/* File input mockup */}
+                {/* Real File Input for Base64 Upload */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">Item Image</label>
-                  <div className="border border-brand-border border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center bg-brand-base">
-                    <FaImage className="w-8 h-8 text-gray-500 mb-2" />
-                    <p className="text-sm text-gray-400 mb-2">Drag and drop an image, or click to browse</p>
-                    <button type="button" className="px-4 py-1.5 bg-brand-elevated border border-brand-border rounded-md text-xs font-medium text-white hover:bg-brand-strong transition-colors">
-                      Select File
-                    </button>
-                  </div>
+                  
+                  {formData.imageBase64 ? (
+                    <div className="relative h-40 w-full rounded-lg border border-brand-border overflow-hidden bg-brand-base flex items-center justify-center">
+                      <img src={formData.imageBase64} alt="Preview" className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                        <button 
+                          type="button" 
+                          onClick={() => setFormData({ ...formData, imageBase64: '' })}
+                          className="px-3 py-1.5 bg-red-500 hover:bg-red-600 rounded text-xs font-medium text-white mb-2"
+                        >
+                          Remove Image
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border border-brand-border border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center bg-brand-base relative">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleImageUpload}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                      />
+                      <FaImage className="w-8 h-8 text-gray-500 mb-2" />
+                      <p className="text-sm text-gray-400 mb-2">Drag and drop an image, or click to browse</p>
+                      <button type="button" className="px-4 py-1.5 bg-brand-elevated border border-brand-border rounded-md text-xs font-medium text-white pointer-events-none">
+                        Select File
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
