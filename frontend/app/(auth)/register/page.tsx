@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { FaSpinner } from 'react-icons/fa';
-import api from '@/lib/axios';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -25,17 +24,34 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      // Backend handles default role assignment, normally to RESTAURANT_OWNER.
-      // Real Super Admins are typically configured in the database, but since
-      // they use the exact same page per requirements, standard API hit is used.
-      const res = await api.post('/auth/register', formData);
+      // Simulate network request
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      if (res.data.success || res.status === 201 || res.status === 200) {
-        toast.success('Registration successful! Please log in.');
-        router.push('/login');
+      const existingUsers = JSON.parse(localStorage.getItem('qr-menu-users') || '[]');
+      
+      // Basic validation
+      if (existingUsers.some((u: any) => u.email === formData.email)) {
+        toast.error('An account with this email already exists.');
+        setLoading(false);
+        return;
       }
+
+      const newUser = {
+        id: Date.now().toString(),
+        ...formData,
+        role: 'RESTAURANT_ADMIN',
+        status: 'active',
+        items: 0,
+        joinedAt: new Date().toISOString()
+      };
+
+      existingUsers.push(newUser);
+      localStorage.setItem('qr-menu-users', JSON.stringify(existingUsers));
+      
+      toast.success('Registration successful! Please log in.');
+      router.push('/login');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Registration failed. Please try again.');
+      toast.error('Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }

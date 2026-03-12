@@ -5,12 +5,6 @@ import { FaPlus, FaPencilAlt, FaTrash, FaPercent, FaTimes, FaDollarSign } from '
 import { toast } from 'react-hot-toast';
 import FadeIn from '@/components/ui/FadeIn';
 
-// Mock data for discounts
-const initialDiscounts = [
-  { id: 1, name: 'Summer Special', type: 'percentage', value: 15, active: true },
-  { id: 2, name: 'Happy Hour', type: 'flat', value: 5.00, active: false },
-];
-
 export default function DiscountsPage() {
   const [discounts, setDiscounts] = useState<any[]>([]);
   
@@ -19,9 +13,6 @@ export default function DiscountsPage() {
     const saved = localStorage.getItem('qr-menu-discounts');
     if (saved) {
       setDiscounts(JSON.parse(saved));
-    } else {
-      setDiscounts(initialDiscounts);
-      localStorage.setItem('qr-menu-discounts', JSON.stringify(initialDiscounts));
     }
   }, []);
 

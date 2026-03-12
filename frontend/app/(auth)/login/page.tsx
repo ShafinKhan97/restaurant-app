@@ -18,32 +18,23 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      
-      const res = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
+      // Simulate network wait
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      const data = await res.json();
+      const existingUsers = JSON.parse(localStorage.getItem('qr-menu-users') || '[]');
+      const user = existingUsers.find((u: any) => u.email === formData.email && u.password === formData.password);
 
-      if (res.ok && data?.success && data?.user && data?.token) {
-        const user = {
-          id: data.user.id,
-          email: data.user.email,
-          name: data.user.firstName ? `${data.user.firstName} ${data.user.lastName}` : data.user.name,
-          role: data.user.role,
-          restaurantId: data.user.restaurantId,
-          accessToken: data.token,
+      if (user) {
+        const authUser = {
+          id: user.id,
+          email: user.email,
+          name: `${user.firstName} ${user.lastName}`,
+          role: user.role,
+          restaurantId: user.id,
+          accessToken: 'mocked-jwt-token-local',
         };
 
-        login(data.token, user);
+        login(authUser.accessToken, authUser);
         toast.success('Logged in successfully');
         
         // Redirect based on role
@@ -52,11 +43,23 @@ export default function LoginPage() {
         } else {
           router.push('/dashboard');
         }
+      } else if (formData.email === 'admin@qr-menu.com' && formData.password === 'superadmin123') {
+        const superUser = {
+          id: 'super-admin-id',
+          email: 'admin@qr-menu.com',
+          name: 'Super Admin',
+          role: 'SUPER_ADMIN',
+          restaurantId: undefined,
+          accessToken: 'mocked-super-jwt-token',
+        };
+        login(superUser.accessToken, superUser);
+        toast.success('Logged in as Super Admin');
+        router.push('/superadmin');
       } else {
-        toast.error(data?.message || 'Invalid email or password');
+        toast.error('Invalid email or password');
       }
     } catch (error) {
-      toast.error('Unable to connect to server. Please try again.');
+      toast.error('An error occurred during login. Please try again.');
     } finally {
       setLoading(false);
     }

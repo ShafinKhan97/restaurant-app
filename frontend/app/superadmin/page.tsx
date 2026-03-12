@@ -1,21 +1,22 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { FaStore, FaChartLine, FaUsers, FaArrowUp, FaCheckCircle, FaBan } from 'react-icons/fa';
 import FadeIn from '@/components/ui/FadeIn';
 
-// Mock data representing registered restaurants
-const registeredRestaurants = [
-  { id: 1, name: 'Burger King Local', owner: 'John Doe', email: 'john@burgerking.local', items: 45, status: 'active', joinedAt: '2026-01-15' },
-  { id: 2, name: 'Spicy Noodle Bar', owner: 'Sarah Chen', email: 'sarah@noodlebar.co', items: 32, status: 'active', joinedAt: '2026-02-10' },
-  { id: 3, name: 'The Coffee Spot', owner: 'Mike Tyson', email: 'mike@coffeespot.com', items: 12, status: 'active', joinedAt: '2026-02-28' },
-  { id: 4, name: 'Tacos Los Hermanos', owner: 'Luis Silva', email: 'luis@tacos.mx', items: 68, status: 'active', joinedAt: '2026-03-01' },
-  { id: 5, name: 'Pizza Paradise', owner: 'Emma Watson', email: 'emma@pizzaparadise.us', items: 0, status: 'suspended', joinedAt: '2026-03-05' },
-];
-
 export default function SuperAdminOverview() {
+  const [registeredRestaurants, setRegisteredRestaurants] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Read from localStorage simulating the real DB
+    const users = JSON.parse(localStorage.getItem('qr-menu-users') || '[]');
+    setRegisteredRestaurants(users.filter((u: any) => u.role === 'RESTAURANT_ADMIN'));
+  }, []);
+
   const totalRestaurants = registeredRestaurants.length;
   const activeRestaurants = registeredRestaurants.filter(r => r.status === 'active').length;
-  const totalItemsGlobal = registeredRestaurants.reduce((sum, r) => sum + r.items, 0);
+  // Fall back to 0 items if not set since we aren't tracking all item arrays globally yet
+  const totalItemsGlobal = registeredRestaurants.reduce((sum, r) => sum + (r.items || 0), 0);
 
   return (
     <div className="space-y-8 pb-8">
@@ -111,18 +112,18 @@ export default function SuperAdminOverview() {
               {registeredRestaurants.map((restaurant) => (
                 <tr key={restaurant.id} className="hover:bg-brand-base transition-colors">
                   <td className="px-6 py-4">
-                    <div className="font-bold text-white">{restaurant.name}</div>
+                    <div className="font-bold text-white">{restaurant.restaurantName || restaurant.name}</div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm text-gray-300">{restaurant.owner}</div>
+                    <div className="text-sm text-gray-300">{restaurant.firstName} {restaurant.lastName}</div>
                     <div className="text-xs text-gray-500">{restaurant.email}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                    {new Date(restaurant.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                    {restaurant.joinedAt ? new Date(restaurant.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-brand-elevated border border-brand-border text-xs font-bold text-gray-300">
-                      {restaurant.items}
+                      {restaurant.items || 0}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">

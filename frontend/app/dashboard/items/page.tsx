@@ -5,13 +5,6 @@ import { FaPlus, FaPencilAlt, FaTrash, FaImage, FaSearch, FaTimes } from 'react-
 import { toast } from 'react-hot-toast';
 import FadeIn from '@/components/ui/FadeIn';
 
-// Mock data, to be replaced by API calls later
-const initialItems = [
-  { id: 1, name: 'Margherita Pizza', description: 'Classic tomato and mozzarella.', price: 12.99, category: 'Pizza' },
-  { id: 2, name: 'Caesar Salad', description: 'Crisp romaine, parmesan, croutons.', price: 8.50, category: 'Salads' },
-  { id: 3, name: 'Garlic Bread', description: 'Toasted baguette with garlic butter.', price: 4.99, category: 'Appetizers' },
-];
-
 export default function MenuItemsPage() {
   const [items, setItems] = useState<any[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
@@ -23,9 +16,6 @@ export default function MenuItemsPage() {
     const savedItems = localStorage.getItem('qr-menu-items');
     if (savedItems) {
       setItems(JSON.parse(savedItems));
-    } else {
-      setItems(initialItems);
-      localStorage.setItem('qr-menu-items', JSON.stringify(initialItems));
     }
 
     const savedDiscounts = localStorage.getItem('qr-menu-discounts');
