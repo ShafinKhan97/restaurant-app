@@ -11,7 +11,8 @@ import {
   FaPercent,
   FaSignOutAlt,
   FaBars,
-  FaTimes
+  FaTimes,
+  FaQrcode
 } from 'react-icons/fa';
 
 export default function DashboardLayout({
@@ -44,6 +45,7 @@ export default function DashboardLayout({
     { name: 'Overview', href: '/dashboard', icon: FaChartPie },
     { name: 'Menu Items', href: '/dashboard/items', icon: FaUtensils },
     { name: 'Discounts', href: '/dashboard/discounts', icon: FaPercent },
+    { name: 'QR Code', href: '/dashboard/qrcode', icon: FaQrcode },
     { name: 'Admin Profile', href: '/dashboard/profile', icon: FaUser },
   ];
 
