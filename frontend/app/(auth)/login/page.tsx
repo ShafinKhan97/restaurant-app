@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { FaSpinner } from 'react-icons/fa';
+import apiClient from '@/lib/axios';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,48 +19,51 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Simulate network wait
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // 1. Authenticate with backend
+      const response = await apiClient.post('/auth/login', {
+        email: formData.email,
+        password: formData.password
+      });
 
-      const existingUsers = JSON.parse(localStorage.getItem('qr-menu-users') || '[]');
-      const user = existingUsers.find((u: any) => u.email === formData.email && u.password === formData.password);
-
-      if (user) {
-        const authUser = {
-          id: user.id,
-          email: user.email,
-          name: `${user.firstName} ${user.lastName}`,
-          role: user.role,
-          restaurantId: user.id,
-          accessToken: 'mocked-jwt-token-local',
-        };
-
-        login(authUser.accessToken, authUser);
-        toast.success('Logged in successfully');
-        
-        // Redirect based on role
-        if (user.role === 'SUPER_ADMIN') {
-          router.push('/superadmin');
-        } else {
-          router.push('/dashboard');
+      const { token, admin } = response.data;
+      
+      let restaurantId = undefined;
+      
+      // 2. If it's a restaurant admin, automatically fetch their restaurant
+      if (admin.role !== 'SUPER_ADMIN') {
+        try {
+          const resResponse = await apiClient.get('/restaurants', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (resResponse.data.restaurants && resResponse.data.restaurants.length > 0) {
+            restaurantId = resResponse.data.restaurants[0]._id;
+          }
+        } catch (resErr) {
+          console.error("Could not fetch associated restaurants");
         }
-      } else if (formData.email === 'admin@qr-menu.com' && formData.password === 'superadmin123') {
-        const superUser = {
-          id: 'super-admin-id',
-          email: 'admin@qr-menu.com',
-          name: 'Super Admin',
-          role: 'SUPER_ADMIN',
-          restaurantId: undefined,
-          accessToken: 'mocked-super-jwt-token',
-        };
-        login(superUser.accessToken, superUser);
-        toast.success('Logged in as Super Admin');
+      }
+
+      const authUser = {
+        id: admin.id,
+        email: admin.email,
+        name: admin.name,
+        role: admin.role,
+        restaurantId: restaurantId,
+        accessToken: token,
+      };
+
+      login(token, authUser);
+      toast.success('Logged in successfully');
+      
+      if (admin.role === 'super_admin' || admin.role === 'SUPER_ADMIN') {
         router.push('/superadmin');
       } else {
-        toast.error('Invalid email or password');
+        router.push('/dashboard');
       }
-    } catch (error) {
-      toast.error('An error occurred during login. Please try again.');
+
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || 'Invalid email or password';
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }

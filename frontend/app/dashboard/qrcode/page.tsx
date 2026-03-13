@@ -1,17 +1,35 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
-import { FaDownload, FaExternalLinkAlt, FaQrcode } from 'react-icons/fa';
+import { FaDownload, FaExternalLinkAlt, FaQrcode, FaSpinner } from 'react-icons/fa';
 import FadeIn from '@/components/ui/FadeIn';
+import apiClient from '@/lib/axios';
 
 export default function QRCodePage() {
   const { user } = useAuth();
+  const [slug, setSlug] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSlug = async () => {
+      if (!user?.restaurantId) return;
+      try {
+        const { data } = await apiClient.get(`/restaurants/${user.restaurantId}`);
+        setSlug(data.restaurant.slug);
+      } catch (err) {
+        console.error("Failed to fetch restaurant details");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSlug();
+  }, [user]);
   
-  // Generate unique URL based on admin's restaurantId
-  // In our mock setup, the user.id is effectively their restaurantId
+  // Generate unique URL based on admin's restaurant slug
   const websiteUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-  const menuLink = `${websiteUrl}/menu/${user?.id || 'demo'}`;
+  const menuLink = `${websiteUrl}/menu/${slug}`;
 
   const downloadQRCode = () => {
     const svg = document.getElementById('DashboardMultiQRCode');
@@ -50,6 +68,12 @@ export default function QRCodePage() {
           Print your personalized restaurant QR code for seamless table-side ordering.
         </p>
       </FadeIn>
+
+      {isLoading || !slug ? (
+        <div className="flex justify-center items-center py-20">
+          <FaSpinner className="text-primary w-8 h-8 animate-spin" />
+        </div>
+      ) : (
 
       <FadeIn delay={0.2} direction="up" className="bg-brand-surface border border-brand-border rounded-xl p-8 lg:p-12 shadow-sm flex flex-col md:flex-row items-center md:items-start gap-8 lg:gap-12">
         {/* Generative Box Area */}
@@ -97,10 +121,11 @@ export default function QRCodePage() {
           </div>
           
           <div className="mt-8 pt-6 border-t border-brand-border flex items-center justify-center md:justify-start gap-3 text-sm text-gray-500">
-             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse mt-[2px]" /> Live tracking via <span className="text-gray-300 font-mono select-all">/menu/{user?.id || 'demo'}</span>
+             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse mt-[2px]" /> Live tracking via <span className="text-gray-300 font-mono select-all">/menu/{slug}</span>
           </div>
         </div>
       </FadeIn>
+      )}
     </div>
   );
 }

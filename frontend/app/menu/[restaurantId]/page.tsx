@@ -1,51 +1,62 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { FaSearch, FaImage, FaStar, FaFire } from 'react-icons/fa';
 import FadeIn from '@/components/ui/FadeIn';
+import apiClient from '@/lib/axios';
 
 export default function PublicMenuPage() {
   const params = useParams();
   const restaurantId = params.restaurantId as string;
   
-  const [restaurantName, setRestaurantName] = useState('Restaurant Menu');
+  const [restaurantName, setRestaurantName] = useState('');
   const [items, setItems] = useState<any[]>([]);
-  const [discounts, setDiscounts] = useState<any[]>([]);
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    // Simulate fetching from database
-    setTimeout(() => {
-      const users = JSON.parse(localStorage.getItem('qr-menu-users') || '[]');
-      const restaurantUser = users.find((u: any) => u.id === restaurantId);
-      
-      if (restaurantUser) {
-        setRestaurantName(restaurantUser.restaurantName || restaurantUser.name || 'Restaurant Menu');
-      }
+    const fetchMenu = async () => {
+      try {
+        const { data } = await apiClient.get(`/menu/${restaurantId}`);
+        
+        if (data.redirected) {
+          router.replace(`/menu/${data.current_slug}`);
+          return;
+        }
 
-      const savedItems = localStorage.getItem('qr-menu-items');
-      if (savedItems) {
-        setItems(JSON.parse(savedItems));
+        if (data.success && data.restaurant) {
+          setRestaurantName(data.restaurant.name);
+          
+          // Flatten items from categorized map
+          let allItems: any[] = [];
+          if (data.menu) {
+             Object.values(data.menu).forEach((categoryItems: any) => {
+               allItems = [...allItems, ...categoryItems];
+             });
+          }
+          setItems(allItems);
+        }
+      } catch (err) {
+        console.error("Menu fetch failed", err);
+        setRestaurantName("Restaurant Not Found");
+      } finally {
+        setIsLoading(false);
       }
+    };
+    
+    fetchMenu();
+  }, [restaurantId, router]);
 
-      const savedDiscounts = localStorage.getItem('qr-menu-discounts');
-      if (savedDiscounts) {
-        setDiscounts(JSON.parse(savedDiscounts));
-      }
-      
-      setIsLoading(false);
-    }, 800);
-  }, [restaurantId]);
-
-  const categories = ['All', ...Array.from(new Set(items.map(i => i.category)))];
+  const categories = ['All', ...Array.from(new Set(items.map(i => i.category_name)))];
   
   const filteredItems = items.filter(item => {
-    const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
+    const matchesCategory = activeCategory === 'All' || item.category_name === activeCategory;
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          item.description?.toLowerCase().includes(searchQuery.toLowerCase());
                           item.description?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
@@ -56,16 +67,13 @@ export default function PublicMenuPage() {
     let hasDiscount = false;
     let appliedDiscountName = '';
 
-    if (item.discountId) {
-      const discount = discounts.find(d => d.id.toString() === item.discountId.toString() && d.active);
-      if (discount) {
-        hasDiscount = true;
-        appliedDiscountName = discount.name;
-        if (discount.type === 'percentage') {
-          finalPrice = finalPrice - (finalPrice * (discount.value / 100));
-        } else {
-          finalPrice = Math.max(0, finalPrice - discount.value);
-        }
+    if (item.discount_type && item.discount_type !== 'none' && item.discount_value > 0) {
+      hasDiscount = true;
+      appliedDiscountName = item.discount_type === 'percentage' ? `${item.discount_value}% OFF deal` : `$${item.discount_value} OFF deal`;
+      if (item.discount_type === 'percentage') {
+        finalPrice = finalPrice - (finalPrice * (item.discount_value / 100));
+      } else {
+        finalPrice = Math.max(0, finalPrice - item.discount_value);
       }
     }
     return { finalPrice, originalPrice, hasDiscount, appliedDiscountName };
@@ -156,7 +164,7 @@ export default function PublicMenuPage() {
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         
         {/* Special Promo / Featured Banner */}
-        {!searchQuery && activeCategory === 'All' && discounts.some(d => d.active) && (
+        {!searchQuery && activeCategory === 'All' && items.some(i => i.discount_type !== 'none' && i.discount_value > 0) && (
           <FadeIn delay={0.1} direction="up" className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-primary/20 to-orange-600/10 border border-primary/20 relative overflow-hidden flex items-center justify-between">
             <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
             <div className="relative z-10 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -209,9 +217,9 @@ export default function PublicMenuPage() {
                     {/* Image */}
                     <div 
                       className="h-48 w-full bg-brand-base flex items-center justify-center relative bg-cover bg-center border-b border-brand-border"
-                      style={{ backgroundImage: item.imageBase64 ? `url(${item.imageBase64})` : 'none' }}
+                      style={{ backgroundImage: item.image_url ? `url(${item.image_url})` : 'none' }}
                     >
-                      {!item.imageBase64 && <FaImage className="w-12 h-12 text-brand-elevated" />}
+                      {!item.image_url && <FaImage className="w-12 h-12 text-brand-elevated" />}
                       
                       {/* Discount Badge */}
                       {hasDiscount && (

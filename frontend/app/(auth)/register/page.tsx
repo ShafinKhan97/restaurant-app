@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { FaSpinner } from 'react-icons/fa';
+import apiClient from '@/lib/axios';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -24,34 +25,30 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      // Simulate network request
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const existingUsers = JSON.parse(localStorage.getItem('qr-menu-users') || '[]');
-      
-      // Basic validation
-      if (existingUsers.some((u: any) => u.email === formData.email)) {
-        toast.error('An account with this email already exists.');
-        setLoading(false);
-        return;
-      }
+      // 1. Create Admin User
+      const adminResponse = await apiClient.post('/auth/signup', {
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: formData.email,
+        password: formData.password,
+        role: 'restaurant_admin'
+      });
 
-      const newUser = {
-        id: Date.now().toString(),
-        ...formData,
-        role: 'RESTAURANT_ADMIN',
-        status: 'active',
-        items: 0,
-        joinedAt: new Date().toISOString()
-      };
+      const token = adminResponse.data.token;
 
-      existingUsers.push(newUser);
-      localStorage.setItem('qr-menu-users', JSON.stringify(existingUsers));
+      // 2. Automatically Create the Restaurant for this Admin
+      await apiClient.post('/restaurants', {
+        name: formData.restaurantName
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
       
       toast.success('Registration successful! Please log in.');
       router.push('/login');
     } catch (error: any) {
-      toast.error('Registration failed. Please try again.');
+      const errorMsg = error.response?.data?.message || 'Registration failed. Please try again.';
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
