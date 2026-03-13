@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import apiClient from '@/lib/axios';
 
 export default function MenuItemsPage() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -187,11 +187,14 @@ export default function MenuItemsPage() {
               e.preventDefault();
               const name = e.target.restaurantName.value;
               try {
-                // Manually create one and reload to fix state
+                // Manually create one and update auth state
                 toast.loading('Creating restaurant setup...', { id: 'setup' });
-                await apiClient.post('/restaurants', { name });
+                const res = await apiClient.post('/restaurants', { name });
+                
+                // CRITICAL FIX: The user's JWT now has a restaurant! Update the auth context so the page re-renders properly
+                updateUser({ restaurantId: res.data.restaurant._id });
+                
                 toast.success('Restaurant created successfully!', { id: 'setup' });
-                window.location.reload();
               } catch (err) {
                 toast.error('Failed to create restaurant setup', { id: 'setup' });
               }
