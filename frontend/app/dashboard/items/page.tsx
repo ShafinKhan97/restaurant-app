@@ -38,7 +38,7 @@ export default function MenuItemsPage() {
     
     try {
       const { data } = await apiClient.get(`/restaurants/${user.restaurantId}/menu-items`);
-      setItems(data.data || []);
+      setItems(data.menuItems || []);
     } catch (error) {
       console.error("Failed to load menu items", error);
       toast.error("Could not load your menu items from the server.");
