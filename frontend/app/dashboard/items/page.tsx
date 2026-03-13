@@ -148,12 +148,12 @@ export default function MenuItemsPage() {
     try {
       if (isEditing) {
         const { data } = await apiClient.put(`/restaurants/${user.restaurantId}/menu-items/${formData._id}`, payload);
-        setItems(prev => prev.map(item => item._id === formData._id ? data.data : item));
+        setItems(prev => prev.map(item => item._id === formData._id ? data.menuItem : item));
         toast.success('Item updated successfully');
       } else {
         const { data } = await apiClient.post(`/restaurants/${user.restaurantId}/menu-items`, payload);
         // Add new item to the TOP of the list
-        setItems(prev => [data.data, ...prev]);
+        setItems(prev => [data.menuItem, ...prev]);
         toast.success('New item added to menu');
       }
       setIsModalOpen(false);
