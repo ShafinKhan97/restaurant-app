@@ -175,9 +175,40 @@ export default function MenuItemsPage() {
 
   if (!user?.restaurantId && !isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 bg-brand-surface rounded-xl border border-brand-border">
-         <h2 className="text-xl font-bold text-white mb-2">Configure Your Restaurant First</h2>
-         <p className="text-gray-400">You need an active restaurant configuration before you can add menu items.</p>
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+         <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-6">
+           <FaPlus className="w-8 h-8 text-primary" />
+         </div>
+         <h2 className="text-2xl font-bold text-white mb-3">Configure Your Restaurant First</h2>
+         <p className="text-gray-400 max-w-md mx-auto mb-8">You need an active restaurant configuration before you can add menu items. It seems your account hasn't been linked to a restaurant yet.</p>
+         
+         <form 
+            onSubmit={async (e: any) => {
+              e.preventDefault();
+              const name = e.target.restaurantName.value;
+              try {
+                // Manually create one and reload to fix state
+                toast.loading('Creating restaurant setup...', { id: 'setup' });
+                await apiClient.post('/restaurants', { name });
+                toast.success('Restaurant created successfully!', { id: 'setup' });
+                window.location.reload();
+              } catch (err) {
+                toast.error('Failed to create restaurant setup', { id: 'setup' });
+              }
+            }}
+            className="flex flex-col sm:flex-row gap-3 items-center max-w-sm w-full mx-auto"
+         >
+            <input 
+              name="restaurantName"
+              type="text" 
+              required
+              placeholder="e.g. My Awesome Cafe"
+              className="w-full px-4 py-3 bg-brand-surface border border-brand-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-primary"
+            />
+            <button type="submit" className="w-full sm:w-auto px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg whitespace-nowrap shadow-glow transition-colors">
+              Create Now
+            </button>
+         </form>
       </div>
     );
   }
