@@ -65,7 +65,6 @@ export default function PublicMenuPage() {
     const matchesCategory = activeCategory === 'All' || item.category_name === activeCategory;
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           item.description?.toLowerCase().includes(searchQuery.toLowerCase());
-                          item.description?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -219,7 +218,7 @@ export default function PublicMenuPage() {
               const { finalPrice, originalPrice, hasDiscount, appliedDiscountName } = getCalculatedPrice(item);
               
               return (
-                <FadeIn key={item.id} delay={index * 0.05} direction="up">
+                <FadeIn key={item._id} delay={index * 0.05} direction="up">
                   <div className="bg-brand-surface border border-brand-border rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:border-brand-elevated transition-all flex flex-col h-full relative group hover:-translate-y-1">
                     
                     {/* Image */}
