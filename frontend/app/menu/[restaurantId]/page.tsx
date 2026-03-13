@@ -21,8 +21,16 @@ export default function PublicMenuPage() {
   useEffect(() => {
     const fetchMenu = async () => {
       try {
-        const { data } = await apiClient.get(`/menu/${restaurantId}`);
+        const { data, status } = await apiClient.get(`/menu/${restaurantId}`, {
+          validateStatus: (status) => status === 200 || status === 404
+        });
         
+        if (status === 404) {
+          setRestaurantName("Restaurant Not Found");
+          setIsLoading(false);
+          return;
+        }
+
         if (data.redirected) {
           router.replace(`/menu/${data.current_slug}`);
           return;
