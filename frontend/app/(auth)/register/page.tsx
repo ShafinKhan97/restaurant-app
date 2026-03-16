@@ -6,9 +6,11 @@ import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { FaSpinner } from 'react-icons/fa';
 import apiClient from '@/lib/axios';
+import { useAuth } from '@/context/AuthContext';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   
   // Universal registration form fields
@@ -36,16 +38,29 @@ export default function RegisterPage() {
       const token = adminResponse.data.token;
 
       // 2. Automatically Create the Restaurant for this Admin
-      await apiClient.post('/restaurants', {
+      const restaurantResponse = await apiClient.post('/restaurants', {
         name: formData.restaurantName
       }, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      
-      toast.success('Registration successful! Please log in.');
-      router.push('/login');
+
+      const restaurantId = restaurantResponse.data.restaurant._id;
+      const adminData = adminResponse.data.admin;
+
+      // 3. Auto-login: populate AuthContext and go straight to dashboard
+      login(token, {
+        id: adminData.id,
+        email: adminData.email,
+        name: adminData.name,
+        role: adminData.role,
+        restaurantId,
+        accessToken: token,
+      });
+
+      toast.success(`Welcome, ${adminData.name}! Your account is ready.`);
+      router.push('/dashboard');
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || 'Registration failed. Please try again.';
       toast.error(errorMsg);
