@@ -4,18 +4,34 @@ import { useState, useEffect } from 'react';
 import { FaStore, FaChartLine, FaUsers, FaArrowUp, FaCheckCircle, FaBan } from 'react-icons/fa';
 import FadeIn from '@/components/ui/FadeIn';
 
+import apiClient from '@/lib/axios';
+import { toast } from 'react-hot-toast';
+
 export default function SuperAdminOverview() {
   const [registeredRestaurants, setRegisteredRestaurants] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Read from localStorage simulating the real DB
-    const users = JSON.parse(localStorage.getItem('qr-menu-users') || '[]');
-    setRegisteredRestaurants(users.filter((u: any) => u.role === 'RESTAURANT_ADMIN'));
+    fetchRestaurants();
   }, []);
 
+  const fetchRestaurants = async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiClient.get('/restaurants/all');
+      if (response.data.success) {
+        setRegisteredRestaurants(response.data.restaurants);
+      }
+    } catch (error: any) {
+      console.error('Error fetching restaurants:', error);
+      toast.error('Failed to load system overview data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const totalRestaurants = registeredRestaurants.length;
-  const activeRestaurants = registeredRestaurants.filter(r => r.status === 'active').length;
-  // Fall back to 0 items if not set since we aren't tracking all item arrays globally yet
+  const activeRestaurants = registeredRestaurants.filter(r => r.is_active !== false).length;
   const totalItemsGlobal = registeredRestaurants.reduce((sum, r) => sum + (r.items || 0), 0);
 
   return (
@@ -98,55 +114,75 @@ export default function SuperAdminOverview() {
         </div>
         
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-brand-elevated border-b border-brand-border text-xs uppercase tracking-wider text-gray-400 font-semibold">
-                <th className="px-6 py-4">Restaurant Name</th>
-                <th className="px-6 py-4">Owner Contact</th>
-                <th className="px-6 py-4">Joined Date</th>
-                <th className="px-6 py-4 text-center">Menu Items</th>
-                <th className="px-6 py-4 text-right">System Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-brand-border">
-              {registeredRestaurants.map((restaurant) => (
-                <tr key={restaurant.id} className="hover:bg-brand-base transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-white">{restaurant.restaurantName || restaurant.name}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-300">{restaurant.firstName} {restaurant.lastName}</div>
-                    <div className="text-xs text-gray-500">{restaurant.email}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                    {restaurant.joinedAt ? new Date(restaurant.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-brand-elevated border border-brand-border text-xs font-bold text-gray-300">
-                      {restaurant.items || 0}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    {restaurant.status === 'active' ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                        Active
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20">
-                        <FaBan className="w-3 h-3" />
-                        Suspended
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {registeredRestaurants.length === 0 && (
-            <div className="px-6 py-8 text-center text-gray-400 text-sm">
-              No restaurants have registered on the platform yet.
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-gray-400 text-sm animate-pulse">Fetching platform data...</p>
             </div>
+          ) : (
+            <>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-brand-elevated border-b border-brand-border text-xs uppercase tracking-wider text-gray-400 font-semibold">
+                    <th className="px-6 py-4">Restaurant Name</th>
+                    <th className="px-6 py-4">Owner Contact</th>
+                    <th className="px-6 py-4">Joined Date</th>
+                    <th className="px-6 py-4 text-center">Menu Items</th>
+                    <th className="px-6 py-4 text-right">System Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-brand-border">
+                  {registeredRestaurants.map((restaurant) => (
+                    <tr key={restaurant._id} className="hover:bg-brand-base transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-white">{restaurant.name}</div>
+                        {restaurant.slug && (
+                          <div className="text-[10px] text-primary uppercase tracking-widest mt-0.5 font-bold">
+                            /{restaurant.slug}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-300">
+                          {restaurant.admin_id?.name || 'Unknown Admin'}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {restaurant.admin_id?.email || 'No email provided'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                        {restaurant.created_at 
+                          ? new Date(restaurant.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) 
+                          : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-brand-elevated border border-brand-border text-xs font-bold text-gray-300">
+                          {restaurant.items || 0}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {restaurant.is_active !== false ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+                            <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                            Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20">
+                            <FaBan className="w-3 h-3" />
+                            Suspended
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {registeredRestaurants.length === 0 && (
+                <div className="px-6 py-12 text-center text-gray-400 text-sm">
+                  No restaurants have registered on the platform yet.
+                </div>
+              )}
+            </>
           )}
         </div>
       </FadeIn>
