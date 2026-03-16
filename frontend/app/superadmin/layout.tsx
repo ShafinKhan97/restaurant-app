@@ -27,13 +27,13 @@ export default function SuperAdminLayout({
     if (!isLoading) {
       if (!user) {
         router.push('/login');
-      } else if (user.role !== 'SUPER_ADMIN') {
+      } else if (user.role !== 'super_admin') {
         router.push('/dashboard');
       }
     }
   }, [user, isLoading, router]);
 
-  if (isLoading || !user || user.role !== 'SUPER_ADMIN') {
+  if (isLoading || !user || user.role !== 'super_admin') {
     return (
       <div className="h-screen flex items-center justify-center bg-brand-base text-primary">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>

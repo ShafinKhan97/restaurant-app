@@ -337,6 +337,41 @@ const getRestaurantBySlug = async (req, res) => {
   }
 };
 
+// @desc    Get ALL restaurants across the platform
+// @route   GET /api/restaurants/all
+// @access  Private (super_admin)
+const getAllRestaurants = async (req, res) => {
+  try {
+    const restaurants = await Restaurant.find({})
+      .populate("admin_id", "name email role")
+      .sort("-created_at");
+
+    // Also get item counts
+    const MenuItem = require("../models/MenuItem");
+    const restaurantsWithCounts = await Promise.all(
+      restaurants.map(async (r) => {
+        const itemCount = await MenuItem.countDocuments({ restaurant_id: r._id });
+        return {
+          ...r.toObject(),
+          items: itemCount,
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      count: restaurantsWithCounts.length,
+      restaurants: restaurantsWithCounts,
+    });
+  } catch (error) {
+    console.error("Get all restaurants error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 module.exports = {
   createRestaurant,
   getMyRestaurants,
@@ -344,4 +379,5 @@ module.exports = {
   updateRestaurant,
   deleteRestaurant,
   getRestaurantBySlug,
+  getAllRestaurants,
 };

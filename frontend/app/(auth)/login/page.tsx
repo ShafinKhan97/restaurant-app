@@ -30,7 +30,7 @@ export default function LoginPage() {
       let restaurantId = undefined;
       
       // 2. If it's a restaurant admin, automatically fetch their restaurant
-      if (admin.role !== 'SUPER_ADMIN') {
+      if (admin.role !== 'super_admin') {
         try {
           const resResponse = await apiClient.get('/restaurants', {
             headers: { Authorization: `Bearer ${token}` }
