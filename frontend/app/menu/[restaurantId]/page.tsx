@@ -76,7 +76,7 @@ export default function PublicMenuPage() {
 
     if (item.discount_type && item.discount_type !== 'none' && item.discount_value > 0) {
       hasDiscount = true;
-      appliedDiscountName = item.discount_type === 'percentage' ? `${item.discount_value}% OFF deal` : `$${item.discount_value} OFF deal`;
+      appliedDiscountName = item.discount_type === 'percentage' ? `${item.discount_value}% OFF deal` : `Rs. ${item.discount_value} OFF deal`;
       if (item.discount_type === 'percentage') {
         finalPrice = finalPrice - (finalPrice * (item.discount_value / 100));
       } else {
@@ -242,10 +242,10 @@ export default function PublicMenuPage() {
                         <h3 className="text-lg font-extrabold text-white leading-tight">{item.name}</h3>
                         <div className="text-right flex flex-col items-end shrink-0">
                           {hasDiscount && (
-                            <span className="text-gray-500 line-through text-[11px] sm:text-xs font-bold">${originalPrice.toFixed(2)}</span>
+                            <span className="text-gray-500 line-through text-[11px] sm:text-xs font-bold">Rs. {originalPrice.toFixed(2)}</span>
                           )}
                           <span className={`font-black text-xl tracking-tight ${hasDiscount ? 'text-green-400' : 'text-primary'}`}>
-                            ${finalPrice.toFixed(2)}
+                            Rs. {finalPrice.toFixed(2)}
                           </span>
                         </div>
                       </div>

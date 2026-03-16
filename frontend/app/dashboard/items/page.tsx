@@ -305,12 +305,12 @@ export default function MenuItemsPage() {
                               
                             return (
                               <div className="flex flex-col items-end">
-                                <span className="text-gray-500 line-through text-xs font-medium">${Number(item.price).toFixed(2)}</span>
-                                <span className="text-green-400 font-bold whitespace-nowrap">${discountedPrice.toFixed(2)}</span>
+                                <span className="text-gray-500 line-through text-xs font-medium">Rs. {Number(item.price).toFixed(2)}</span>
+                                <span className="text-green-400 font-bold whitespace-nowrap">Rs. {discountedPrice.toFixed(2)}</span>
                               </div>
                             );
                           }
-                          return <span className="text-primary font-bold whitespace-nowrap">${Number(item.price).toFixed(2)}</span>;
+                          return <span className="text-primary font-bold whitespace-nowrap">Rs. {Number(item.price).toFixed(2)}</span>;
                         })()}
                       </div>
                     </div>
@@ -319,7 +319,7 @@ export default function MenuItemsPage() {
                     {item.discount_type && item.discount_type !== 'none' && item.discount_value > 0 && (
                       <div className="mb-2">
                          <span className="inline-block bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded border border-green-500/20 font-medium tracking-wide">
-                           {item.discount_type === 'percentage' ? `${item.discount_value}% OFF deal` : `$${item.discount_value} OFF deal`}
+                           {item.discount_type === 'percentage' ? `${item.discount_value}% OFF deal` : `Rs. ${item.discount_value} OFF deal`}
                          </span>
                       </div>
                     )}
@@ -435,7 +435,7 @@ export default function MenuItemsPage() {
                       value={formData.discount_value}
                       onChange={e => setFormData({...formData, discount_value: e.target.value})}
                       className="w-full px-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:border-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      placeholder={formData.discount_type === 'percentage' ? "e.g. 10%" : formData.discount_type === 'fixed' ? "e.g. $2.00" : "N/A"}
+                      placeholder={formData.discount_type === 'percentage' ? "e.g. 10%" : formData.discount_type === 'fixed' ? "e.g. Rs. 200" : "N/A"}
                     />
                   </div>
                 </div>
