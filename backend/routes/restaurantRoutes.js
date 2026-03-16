@@ -8,6 +8,7 @@ const {
   updateRestaurant,
   deleteRestaurant,
   getRestaurantBySlug,
+  getAllRestaurants,
 } = require("../controllers/restaurantController");
 
 // Public route (must be before /:id to avoid conflict)
