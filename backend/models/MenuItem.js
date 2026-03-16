@@ -43,6 +43,10 @@ const menuItemSchema = new mongoose.Schema(
       maxlength: [1000, "Description cannot exceed 1000 characters"],
       set: (v) => (v === "" ? null : v),
     },
+    image_url: {
+      type: String,
+      default: null, // Supports base64 or links
+    },
     discount_type: {
       type: String,
       enum: {

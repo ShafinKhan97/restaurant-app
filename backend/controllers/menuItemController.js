@@ -101,6 +101,7 @@ const createMenuItem = async (req, res) => {
       price,
       variant,
       availability,
+      image_url,
     } = req.body;
 
     // Validate name
@@ -134,6 +135,7 @@ const createMenuItem = async (req, res) => {
       price,
       variant: variant || [],
       availability: availability || "available",
+      image_url: image_url || null,
       ...optionalFields,
     });
 
@@ -302,6 +304,7 @@ const updateMenuItem = async (req, res) => {
       "price",
       "variant",
       "availability",
+      "image_url",
     ];
     for (const field of directFields) {
       if (req.body[field] !== undefined) {
