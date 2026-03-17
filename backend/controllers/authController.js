@@ -296,4 +296,68 @@ const logout = async (req, res) => {
   }
 };
 
-module.exports = { signup, login, forgotPassword, resetPassword, logout };
+// @desc    Update admin profile
+// @route   PUT /api/auth/profile
+// @access  Private
+const updateProfile = async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.user.id);
+
+    if (admin) {
+      admin.name = req.body.name || admin.name;
+      admin.email = req.body.email || admin.email;
+
+      const updatedAdmin = await admin.save();
+      
+      res.status(200).json({
+        success: true,
+        admin: {
+          id: updatedAdmin._id,
+          name: updatedAdmin.name,
+          email: updatedAdmin.email,
+          role: updatedAdmin.role,
+        },
+      });
+    } else {
+      res.status(404).json({ success: false, message: "Admin not found" });
+    }
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ success: false, message: "Email already exists" });
+    }
+    console.error("Update profile error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// @desc    Update admin password
+// @route   PUT /api/auth/password
+// @access  Private
+const updatePassword = async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.user.id).select("+password");
+
+    if (admin) {
+      const isMatch = await admin.matchPassword(req.body.currentPassword);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: "Incorrect current password" });
+      }
+
+      if (req.body.newPassword.length < 8) {
+        return res.status(400).json({ success: false, message: "Password must be at least 8 characters" });
+      }
+
+      admin.password = req.body.newPassword;
+      await admin.save();
+
+      res.status(200).json({ success: true, message: "Password updated successfully" });
+    } else {
+      res.status(404).json({ success: false, message: "Admin not found" });
+    }
+  } catch (error) {
+    console.error("Update password error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+module.exports = { signup, login, forgotPassword, resetPassword, logout, updateProfile, updatePassword };

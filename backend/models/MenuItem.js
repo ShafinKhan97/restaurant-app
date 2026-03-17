@@ -109,8 +109,90 @@ const menuItemSchema = new mongoose.Schema(
 
 // Compound index for quick lookups
 menuItemSchema.index({ restaurant_id: 1, category_name: 1 });
+menuItemSchema.index({ restaurant_id: 1, name: 1 }, { unique: true });
 
-// Cascade delete: remove all image assets when a menu item is deleted
+// Async existence validator
+const validateRestaurantExists = async (restaurantId) => {
+  const Restaurant = mongoose.model("Restaurant");
+  const exists = await Restaurant.exists({ _id: restaurantId });
+  if (!exists) {
+    throw new Error(`Restaurant with ID ${restaurantId} does not exist.`);
+  }
+};
+
+// Check bounds on variants relative to base price manually
+const validateVariants = (variants) => {
+  if (variants && Array.isArray(variants)) {
+    for (const v of variants) {
+      if (v.price < 0.01) {
+        throw new Error("Variant price must be at least 0.01");
+      }
+    }
+  }
+};
+
+const validateDiscountLogic = (type, value) => {
+  if (type === "none" && value > 0) {
+    throw new Error("Contradictory state: discount_type is 'none' but discount_value is greater than 0");
+  }
+  if (type !== "none" && value <= 0) {
+    throw new Error("Discount value must be greater than 0 when a discount type is set");
+  }
+  if (type === "percentage" && value > 100) {
+    throw new Error("Percentage discount cannot exceed 100%");
+  }
+};
+
+// Pre-save hook
+menuItemSchema.pre("save", async function (next) {
+  try {
+    validateDiscountLogic(this.discount_type, this.discount_value);
+    validateVariants(this.variant);
+
+    if (this.isModified("restaurant_id") || this.isNew) {
+      await validateRestaurantExists(this.restaurant_id);
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Pre-update hooks (findOneAndUpdate, updateOne)
+menuItemSchema.pre(["findOneAndUpdate", "updateOne"], async function (next) {
+  try {
+    const update = this.getUpdate();
+    const docToUpdate = await this.model.findOne(this.getQuery());
+    if (!docToUpdate) return next();
+
+    const mergedDiscountType = update.$set?.discount_type !== undefined 
+      ? update.$set.discount_type 
+      : update.discount_type !== undefined ? update.discount_type : docToUpdate.discount_type;
+
+    const mergedDiscountValue = update.$set?.discount_value !== undefined 
+      ? update.$set.discount_value 
+      : update.discount_value !== undefined ? update.discount_value : docToUpdate.discount_value;
+
+    validateDiscountLogic(mergedDiscountType, mergedDiscountValue);
+
+    const variants = update.$set?.variant || update.variant;
+    if (variants) {
+      validateVariants(variants);
+    }
+
+    const checkRestaurantId = update.$set?.restaurant_id || update.restaurant_id;
+    if (checkRestaurantId && checkRestaurantId.toString() !== docToUpdate.restaurant_id.toString()) {
+      await validateRestaurantExists(checkRestaurantId);
+    }
+    
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Cascade delete: remove all image assets
+// Handles instance.deleteOne()
 menuItemSchema.pre("deleteOne", { document: true, query: false }, async function () {
   const ImageAsset = mongoose.model("ImageAsset");
   await ImageAsset.deleteMany({ menu_id: this._id });
