@@ -142,9 +142,8 @@ const forgotPassword = async (req, res) => {
       });
     }
 
-    // Generate 6-digit reset PIN
-    const resetPin = admin.generateResetPin();
-    await admin.save({ validateBeforeSave: false });
+    // Generate 6-digit reset PIN (already saves automatically via schema method)
+    const resetPin = await admin.generateResetPin();
 
     // Send email with PIN
     const html = `
@@ -172,9 +171,7 @@ const forgotPassword = async (req, res) => {
       });
     } catch (emailError) {
       // If email fails, clear the reset PIN
-      admin.reset_pin = null;
-      admin.reset_pin_expires_at = null;
-      await admin.save({ validateBeforeSave: false });
+      await admin.clearResetPin();
 
       console.error("Email send error:", emailError);
       return res.status(500).json({
@@ -212,29 +209,28 @@ const resetPassword = async (req, res) => {
       });
     }
 
-    // Hash the incoming PIN to compare with stored hash
-    const crypto = require("crypto");
-    const hashedPin = crypto.createHash("sha256").update(pin).digest("hex");
-
-    // Find admin with valid reset PIN
-    const admin = await Admin.findOne({
-      email,
-      reset_pin: hashedPin,
-      reset_pin_expires_at: { $gt: Date.now() },
-    });
+    const admin = await Admin.findOne({ email });
 
     if (!admin) {
-      return res.status(400).json({
+      return res.status(404).json({
         success: false,
-        message: "Invalid or expired PIN",
+        message: "No account found with this email",
       });
     }
 
-    // Update password and clear reset PIN
+    // Use the schema method to verify the PIN (handles expiration, attempts and bcrypt compare)
+    const isValidPin = await admin.verifyResetPin(pin);
+
+    if (!isValidPin) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired PIN, or too many attempts",
+      });
+    }
+
+    // Update password (pre-save hook will hash it) and clear PIN
     admin.password = password;
-    admin.reset_pin = null;
-    admin.reset_pin_expires_at = null;
-    await admin.save();
+    await admin.clearResetPin();
 
     // Generate new token after password reset
     const token = generateToken(admin);
