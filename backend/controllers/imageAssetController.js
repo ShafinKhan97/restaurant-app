@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const ImageAsset = require("../models/ImageAsset");
 const MenuItem = require("../models/MenuItem");
 const Restaurant = require("../models/Restaurant");
+const { uploadToS3 } = require("../utils/s3");
 
 // Helper: validate MongoDB ObjectId
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -115,13 +116,18 @@ const createImageAsset = async (req, res) => {
     );
     if (!menuItem) return;
 
-    const { original_url, enhanced_url, ai_processed } = req.body;
+    let { original_url, enhanced_url, ai_processed } = req.body;
+
+    // Handle file upload to S3 if file is present
+    if (req.file) {
+      original_url = await uploadToS3(req.file, `menu-items/${req.params.restaurantId}`);
+    }
 
     // Validate original_url
     if (!original_url || !original_url.trim()) {
       return res.status(400).json({
         success: false,
-        message: "Please provide an original image URL",
+        message: "Please provide an image file or a URL",
       });
     }
 
@@ -130,6 +136,11 @@ const createImageAsset = async (req, res) => {
       original_url: original_url.trim(),
       enhanced_url: enhanced_url || null,
       ai_processed: ai_processed || false,
+    });
+
+    // Also update the main MenuItem with this image URL for quick access
+    await MenuItem.findByIdAndUpdate(req.params.menuItemId, {
+      image_url: original_url.trim(),
     });
 
     res.status(201).json({
@@ -275,8 +286,10 @@ const updateImageAsset = async (req, res) => {
       });
     }
 
-    // Update original_url if provided
-    if (req.body.original_url !== undefined) {
+    // Update original_url if file or URL provided
+    if (req.file) {
+      imageAsset.original_url = await uploadToS3(req.file, `menu-items/${req.params.restaurantId}`);
+    } else if (req.body.original_url !== undefined) {
       const trimmedUrl = req.body.original_url.trim();
       if (!trimmedUrl) {
         return res.status(400).json({
@@ -299,6 +312,11 @@ const updateImageAsset = async (req, res) => {
     }
 
     await imageAsset.save();
+
+    // Also update the main MenuItem with this image URL for quick access
+    await MenuItem.findByIdAndUpdate(req.params.menuItemId, {
+      image_url: imageAsset.original_url,
+    });
 
     res.status(200).json({
       success: true,

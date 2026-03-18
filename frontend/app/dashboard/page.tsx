@@ -11,7 +11,6 @@ export default function DashboardOverviewPage() {
   const checklist = [
     { title: 'Update your profile information', completed: true },
     { title: 'Create Menu Items', completed: true },
-    { title: 'Setup active Discounts', completed: true },
   ];
 
   const completedCount = checklist.filter((item) => item.completed).length;

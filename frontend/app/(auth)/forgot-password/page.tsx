@@ -16,16 +16,11 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      // In a real application, submit the email to the backend to generate a reset token
-      // await api.post('/auth/forgot-password', { email });
-      
-      // Simulating network request
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
+      await api.post('/auth/forgot-password', { email });
       setSubmitted(true);
-      toast.success('Password reset link sent to your email.');
-    } catch (error) {
-      toast.error('Failed to process your request. Please try again.');
+      toast.success('A 6-digit PIN has been sent to your email.');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to process your request. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -71,9 +66,16 @@ export default function ForgotPasswordPage() {
       ) : (
         <div className="bg-brand-elevated border border-brand-border p-6 rounded-lg text-center">
           <p className="text-white font-medium mb-4">Check your email!</p>
-          <p className="text-gray-400 text-sm mb-6">
-            We've sent a password reset link to <span className="text-white font-semibold">{email}</span>.
+          <p className="text-gray-400 text-sm mb-4">
+            We've sent a <span className="text-white font-semibold">6-digit PIN</span> to{' '}
+            <span className="text-white font-semibold">{email}</span>. Use it to reset your password.
           </p>
+          <Link
+            href={`/reset-password?email=${encodeURIComponent(email)}`}
+            className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-bold text-white bg-primary hover:bg-primary-hover focus:outline-none transition-colors mb-4"
+          >
+            Enter PIN &amp; Reset Password
+          </Link>
           <button
             onClick={() => setSubmitted(false)}
             className="text-primary hover:text-primary-hover text-sm font-medium transition-colors"

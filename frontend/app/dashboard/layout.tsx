@@ -8,7 +8,6 @@ import {
   FaChartPie, 
   FaUser, 
   FaUtensils, 
-  FaPercent,
   FaSignOutAlt,
   FaBars,
   FaTimes,
@@ -44,7 +43,6 @@ export default function DashboardLayout({
   const navigation = [
     { name: 'Overview', href: '/dashboard', icon: FaChartPie },
     { name: 'Menu Items', href: '/dashboard/items', icon: FaUtensils },
-    { name: 'Discounts', href: '/dashboard/discounts', icon: FaPercent },
     { name: 'QR Code', href: '/dashboard/qrcode', icon: FaQrcode },
     { name: 'Admin Profile', href: '/dashboard/profile', icon: FaUser },
   ];

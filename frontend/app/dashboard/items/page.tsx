@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { FaPlus, FaPencilAlt, FaTrash, FaImage, FaSearch, FaTimes } from 'react-icons/fa';
+import { useState, useEffect, useRef } from 'react';
+import { FaPlus, FaPencilAlt, FaTrash, FaImage, FaSearch, FaTimes, FaSpinner, FaUpload } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import FadeIn from '@/components/ui/FadeIn';
 import { useAuth } from '@/context/AuthContext';
@@ -17,6 +17,12 @@ export default function MenuItemsPage() {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  // Image file state
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const previewUrlRef = useRef<string>('');
   
   // Form state maps to the actual backend MenuItem schema
   const [formData, setFormData] = useState({ 
@@ -27,7 +33,8 @@ export default function MenuItemsPage() {
     category_name: '', 
     discount_type: 'none',
     discount_value: '',
-    image_url: '' 
+    image_url: '',
+    imageAssetId: '' // tracks existing image asset for PUT
   });
 
   const fetchItems = async () => {
@@ -64,6 +71,17 @@ export default function MenuItemsPage() {
     return matchesSearch && matchesCategory;
   });
 
+  const closeModal = () => {
+    // Revoke the object URL to avoid memory leaks
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = '';
+    }
+    setImageFile(null);
+    setImagePreview('');
+    setIsModalOpen(false);
+  };
+
   const openAddModal = () => {
     setFormData({ 
       _id: '', 
@@ -73,13 +91,18 @@ export default function MenuItemsPage() {
       category_name: activeCategory === 'All' ? '' : activeCategory,
       discount_type: 'none',
       discount_value: '',
-      image_url: ''
+      image_url: '',
+      imageAssetId: ''
     });
+    setImageFile(null);
+    setImagePreview('');
     setIsEditing(false);
     setIsModalOpen(true);
   };
 
   const openEditModal = (item: any) => {
+    // Pull the first image asset ID from the item if it exists
+    const imageAsset = item.image_assets?.[0];
     setFormData({ 
       _id: item._id, 
       name: item.name, 
@@ -88,8 +111,11 @@ export default function MenuItemsPage() {
       category_name: item.category_name,
       discount_type: item.discount_type || 'none',
       discount_value: item.discount_value?.toString() || '',
-      image_url: item.image_url || '' 
+      image_url: item.image_url || '',
+      imageAssetId: imageAsset?._id || ''
     });
+    setImageFile(null);
+    setImagePreview(item.image_url || '');
     setIsEditing(true);
     setIsModalOpen(true);
   };
@@ -134,6 +160,7 @@ export default function MenuItemsPage() {
        return;
     }
 
+    // image_url is NOT sent here — backend manages it via /image-assets endpoint
     const payload = {
       name: formData.name,
       description: formData.description,
@@ -141,22 +168,65 @@ export default function MenuItemsPage() {
       category_name: formData.category_name,
       discount_type: formData.discount_type,
       discount_value: formData.discount_type !== 'none' ? Number(formData.discount_value) : 0,
-      image_url: formData.image_url,
       availability: 'available'
     };
 
     try {
+      let savedItem: any;
+
       if (isEditing) {
         const { data } = await apiClient.put(`/restaurants/${user.restaurantId}/menu-items/${formData._id}`, payload);
-        setItems(prev => prev.map(item => item._id === formData._id ? data.menuItem : item));
+        savedItem = data.menuItem;
+        setItems(prev => prev.map(item => item._id === formData._id ? savedItem : item));
         toast.success('Item updated successfully');
       } else {
         const { data } = await apiClient.post(`/restaurants/${user.restaurantId}/menu-items`, payload);
-        // Add new item to the TOP of the list
-        setItems(prev => [data.menuItem, ...prev]);
+        savedItem = data.menuItem;
+        setItems(prev => [savedItem, ...prev]);
         toast.success('New item added to menu');
       }
-      setIsModalOpen(false);
+
+      // Upload image if a new file was selected
+      if (imageFile && savedItem?._id) {
+        setIsUploading(true);
+        try {
+          const formDataImage = new FormData();
+          formDataImage.append('image', imageFile);
+
+          let imageResponse;
+          if (isEditing && formData.imageAssetId) {
+            // Update existing image asset
+            imageResponse = await apiClient.put(
+              `/restaurants/${user.restaurantId}/menu-items/${savedItem._id}/image-assets/${formData.imageAssetId}`,
+              formDataImage,
+              { headers: { 'Content-Type': 'multipart/form-data' } }
+            );
+          } else {
+            // Upload new image asset
+            imageResponse = await apiClient.post(
+              `/restaurants/${user.restaurantId}/menu-items/${savedItem._id}/image-assets`,
+              formDataImage,
+              { headers: { 'Content-Type': 'multipart/form-data' } }
+            );
+          }
+
+          // Update the item in local state with the new image URL from S3
+          const uploadedAsset = imageResponse.data?.imageAsset || imageResponse.data;
+          const newImageUrl = uploadedAsset?.original_url || uploadedAsset?.image_url || uploadedAsset?.url || '';
+          if (newImageUrl) {
+            setItems(prev => prev.map(item =>
+              item._id === savedItem._id ? { ...item, image_url: newImageUrl } : item
+            ));
+          }
+          toast.success('Image uploaded successfully');
+        } catch (imgErr: any) {
+          toast.error(imgErr.response?.data?.message || 'Item saved, but image upload failed.');
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
+      closeModal();
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to save menu item');
     }
@@ -165,11 +235,14 @@ export default function MenuItemsPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, image_url: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+      // Revoke previous preview URL to avoid memory leaks
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+      const objectUrl = URL.createObjectURL(file);
+      previewUrlRef.current = objectUrl;
+      setImageFile(file);
+      setImagePreview(objectUrl);
     }
   };
 
@@ -353,7 +426,7 @@ export default function MenuItemsPage() {
       {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={closeModal} />
           
           <div className="bg-brand-surface border border-brand-border rounded-2xl w-full max-w-lg relative z-10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-brand-border flex items-center justify-between shrink-0">
@@ -361,7 +434,7 @@ export default function MenuItemsPage() {
                 {isEditing ? 'Edit Menu Item' : 'Add Menu Item'}
               </h2>
               <button 
-                onClick={() => setIsModalOpen(false)}
+                onClick={closeModal}
                 className="text-gray-400 hover:text-white"
               >
                 <FaTimes className="w-5 h-5" />
@@ -452,21 +525,35 @@ export default function MenuItemsPage() {
                   />
                 </div>
                 
-                {/* Real File Input for Base64 Upload */}
+                {/* S3 Image Upload */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">Item Image</label>
                   
-                  {formData.image_url ? (
+                  {imagePreview ? (
                     <div className="relative h-40 w-full rounded-lg border border-brand-border overflow-hidden bg-brand-base flex items-center justify-center">
-                      <img src={formData.image_url} alt="Preview" className="h-full w-full object-cover" />
+                      <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                      {imageFile && (
+                        <div className="absolute top-2 left-2 bg-primary/80 text-white text-xs px-2 py-0.5 rounded font-medium">
+                          New file selected
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                         <button 
                           type="button" 
-                          onClick={() => setFormData({ ...formData, image_url: '' })}
+                          onClick={() => {
+                            if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+                            previewUrlRef.current = '';
+                            setImageFile(null);
+                            setImagePreview('');
+                          }}
                           className="px-3 py-1.5 bg-red-500 hover:bg-red-600 rounded text-xs font-medium text-white mb-2"
                         >
                           Remove Image
                         </button>
+                        <label className="px-3 py-1.5 bg-brand-elevated border border-brand-border rounded text-xs font-medium text-white cursor-pointer">
+                          Replace Image
+                          <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                        </label>
                       </div>
                     </div>
                   ) : (
@@ -477,8 +564,9 @@ export default function MenuItemsPage() {
                         onChange={handleImageUpload}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
                       />
-                      <FaImage className="w-8 h-8 text-gray-500 mb-2" />
+                      <FaUpload className="w-8 h-8 text-gray-500 mb-2" />
                       <p className="text-sm text-gray-400 mb-2">Drag and drop an image, or click to browse</p>
+                      <p className="text-xs text-gray-500 mb-2">Will be uploaded to AWS S3</p>
                       <button type="button" className="px-4 py-1.5 bg-brand-elevated border border-brand-border rounded-md text-xs font-medium text-white pointer-events-none">
                         Select File
                       </button>
@@ -490,16 +578,21 @@ export default function MenuItemsPage() {
               <div className="mt-8 pt-5 border-t border-brand-border flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={closeModal}
                   className="px-5 py-2.5 bg-brand-base hover:bg-brand-elevated border border-brand-border text-white text-sm font-medium rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg shadow-glow transition-colors"
+                  disabled={isUploading}
+                  className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg shadow-glow transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  {isEditing ? 'Save Changes' : 'Add Item'}
+                  {isUploading ? (
+                    <><FaSpinner className="animate-spin w-4 h-4" /> Uploading image...</>
+                  ) : (
+                    isEditing ? 'Save Changes' : 'Add Item'
+                  )}
                 </button>
               </div>
             </form>

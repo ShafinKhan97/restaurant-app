@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
+import apiClient from '@/lib/axios';
 
 interface AuthUser {
   id: string;
@@ -17,7 +18,7 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   login: (token: string, userData: AuthUser) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateUser: (data: Partial<AuthUser>) => void;
 }
 
@@ -25,7 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoading: true,
   login: () => {},
-  logout: () => {},
+  logout: async () => {},
   updateUser: () => {},
 });
 
@@ -57,11 +58,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser({ ...userData, accessToken: token });
   };
 
-  const logout = () => {
-    localStorage.removeItem('qr-menu-token');
-    localStorage.removeItem('qr-menu-user');
-    setUser(null);
-    router.push('/login');
+  const logout = async () => {
+    try {
+      await apiClient.post('/auth/logout');
+    } catch (error) {
+      // Even if the server call fails, we still clear the client session
+      console.error('Logout API call failed:', error);
+    } finally {
+      localStorage.removeItem('qr-menu-token');
+      localStorage.removeItem('qr-menu-user');
+      setUser(null);
+      router.push('/login');
+    }
   };
 
   const updateUser = (data: Partial<AuthUser>) => {
