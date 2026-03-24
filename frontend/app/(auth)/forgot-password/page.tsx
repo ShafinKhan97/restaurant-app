@@ -3,24 +3,39 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
-import { FaSpinner } from 'react-icons/fa';
 import api from '@/lib/axios';
+import { getApiError } from '@/lib/apiError';
+import { emailField } from '@/lib/validationSchemas';
+import FormInput from '@/components/ui/FormInput';
+import SubmitButton from '@/components/ui/SubmitButton';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
+const forgotPasswordSchema = z.object({
+  email: emailField,
+});
+
+type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const { register, handleSubmit, formState: { errors } } = useForm<ForgotPasswordValues>({
+    resolver: zodResolver(forgotPasswordSchema),
+  });
+
+  const onSubmit = async (data: ForgotPasswordValues) => {
     setLoading(true);
-
     try {
-      await api.post('/auth/forgot-password', { email });
+      await api.post('/auth/forgot-password', { email: data.email });
+      setSubmittedEmail(data.email);
       setSubmitted(true);
       toast.success('A 6-digit PIN has been sent to your email.');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to process your request. Please try again.');
+      toast.error(getApiError(error, 'Failed to process your request. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -32,46 +47,32 @@ export default function ForgotPasswordPage() {
         Reset your password
       </h2>
       <p className="text-center text-sm text-gray-400 mb-6">
-        Enter your email and we'll send you a link to reset your password.
+        Enter your email and we&apos;ll send you a PIN to reset your password.
       </p>
 
       {!submitted ? (
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
-              Email address
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="appearance-none block w-full px-3 py-2.5 border border-brand-border rounded-md shadow-sm bg-brand-input text-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition-colors"
-            />
-          </div>
-
+        <form className="space-y-6" onSubmit={handleSubmit(onSubmit)} noValidate>
+          <FormInput
+            id="email"
+            label="Email address"
+            type="email"
+            autoComplete="email"
+            error={errors.email}
+            {...register('email')}
+          />
           <div className="pt-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-bold text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary focus:ring-offset-brand-base disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? <FaSpinner className="animate-spin w-5 h-5" /> : 'Send reset link'}
-            </button>
+            <SubmitButton loading={loading} label="Send reset PIN" />
           </div>
         </form>
       ) : (
         <div className="bg-brand-elevated border border-brand-border p-6 rounded-lg text-center">
           <p className="text-white font-medium mb-4">Check your email!</p>
           <p className="text-gray-400 text-sm mb-4">
-            We've sent a <span className="text-white font-semibold">6-digit PIN</span> to{' '}
-            <span className="text-white font-semibold">{email}</span>. Use it to reset your password.
+            We&apos;ve sent a <span className="text-white font-semibold">6-digit PIN</span> to{' '}
+            <span className="text-white font-semibold">{submittedEmail}</span>. Use it to reset your password.
           </p>
           <Link
-            href={`/reset-password?email=${encodeURIComponent(email)}`}
+            href={`/reset-password?email=${encodeURIComponent(submittedEmail)}`}
             className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-bold text-white bg-primary hover:bg-primary-hover focus:outline-none transition-colors mb-4"
           >
             Enter PIN &amp; Reset Password

@@ -38,3 +38,14 @@
         @apply text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-amber-300;
     }
 }
+
+/* Override react-hot-toast: slide in from right instead of top */
+@keyframes enter {
+    0%   { opacity: 0;   transform: translateX(calc(100% + 1.5rem)); }
+    100% { opacity: 1;   transform: translateX(0); }
+}
+
+@keyframes leave {
+    0%   { opacity: 1;   transform: translateX(0); }
+    100% { opacity: 0;   transform: translateX(calc(100% + 1.5rem)); }
+}

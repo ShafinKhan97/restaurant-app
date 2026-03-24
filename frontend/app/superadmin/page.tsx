@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FaStore, FaChartLine, FaUsers, FaArrowUp, FaCheckCircle, FaBan } from 'react-icons/fa';
+import { FaStore, FaChartLine, FaUsers, FaArrowUp, FaCheckCircle, FaBan, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
 import FadeIn from '@/components/ui/FadeIn';
-
 import apiClient from '@/lib/axios';
 import { toast } from 'react-hot-toast';
+import { getApiError } from '@/lib/apiError';
 
 export default function SuperAdminOverview() {
   const [registeredRestaurants, setRegisteredRestaurants] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     fetchRestaurants();
@@ -18,20 +19,42 @@ export default function SuperAdminOverview() {
   const fetchRestaurants = async () => {
     try {
       setIsLoading(true);
+      setFetchError(false);
       const response = await apiClient.get('/restaurants/all');
       if (response.data.success) {
         setRegisteredRestaurants(response.data.restaurants);
       }
     } catch (error: any) {
-      console.error('Error fetching restaurants:', error);
-      toast.error('Failed to load system overview data');
+      setFetchError(true);
+      toast.error(getApiError(error, 'Failed to load system overview data'));
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleSuspendToggle = async (restaurantId: string, adminId: string, currentStatus: boolean) => {
+    try {
+      toast.loading(currentStatus ? 'Restoring access...' : 'Suspending system...', { id: 'suspend' });
+      const res = await apiClient.put(`/auth/admin/${adminId}/suspend`);
+      
+      if (res.data.success) {
+        toast.success(res.data.message, { id: 'suspend' });
+        // Update local state without refreshing entire list
+        setRegisteredRestaurants(prev => 
+          prev.map(r => r._id === restaurantId 
+            ? { ...r, admin_id: { ...r.admin_id, is_suspended: res.data.is_suspended } } 
+            : r
+          )
+        );
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to toggle suspension', { id: 'suspend' });
+    }
+  };
+
   const totalRestaurants = registeredRestaurants.length;
-  const activeRestaurants = registeredRestaurants.filter(r => r.is_active !== false).length;
+  // Calculate active based on admin suspension status
+  const activeRestaurants = registeredRestaurants.filter(r => !r.admin_id?.is_suspended).length;
   const totalItemsGlobal = registeredRestaurants.reduce((sum, r) => sum + (r.items || 0), 0);
 
   return (
@@ -119,6 +142,20 @@ export default function SuperAdminOverview() {
               <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
               <p className="text-gray-400 text-sm animate-pulse">Fetching platform data...</p>
             </div>
+          ) : fetchError ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+              <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <FaExclamationTriangle className="w-6 h-6 text-red-500" />
+              </div>
+              <p className="text-white font-semibold">Failed to load restaurants</p>
+              <p className="text-gray-400 text-sm">Could not connect to the server. Please try again.</p>
+              <button
+                onClick={fetchRestaurants}
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                <FaRedo className="w-4 h-4" /> Retry
+              </button>
+            </div>
           ) : (
             <>
               <table className="w-full text-left border-collapse">
@@ -128,7 +165,8 @@ export default function SuperAdminOverview() {
                     <th className="px-6 py-4">Owner Contact</th>
                     <th className="px-6 py-4">Joined Date</th>
                     <th className="px-6 py-4 text-center">Menu Items</th>
-                    <th className="px-6 py-4 text-right">System Status</th>
+                    <th className="px-6 py-4 text-center">System Status</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-border">
@@ -160,8 +198,8 @@ export default function SuperAdminOverview() {
                           {restaurant.items || 0}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        {restaurant.is_active !== false ? (
+                      <td className="px-6 py-4 text-center">
+                        {restaurant.admin_id && restaurant.admin_id.is_suspended === false ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
                             <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
                             Active
@@ -172,6 +210,19 @@ export default function SuperAdminOverview() {
                             Suspended
                           </span>
                         )}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => handleSuspendToggle(restaurant._id, restaurant.admin_id?._id, restaurant.admin_id?.is_suspended)}
+                          disabled={!restaurant.admin_id || restaurant.admin_id.role === 'super_admin'}
+                          className={`text-xs font-bold px-4 py-2 rounded-lg transition-colors shadow-sm ${
+                            restaurant.admin_id?.is_suspended 
+                              ? 'bg-green-500/10 hover:bg-green-500/20 text-green-500 border border-green-500/20' 
+                              : 'bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          {restaurant.admin_id?.is_suspended ? 'Restore Access' : 'Suspend System'}
+                        </button>
                       </td>
                     </tr>
                   ))}

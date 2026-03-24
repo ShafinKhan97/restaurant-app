@@ -6,41 +6,51 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { FaSpinner, FaCheckCircle } from 'react-icons/fa';
 import api from '@/lib/axios';
+import { getApiError } from '@/lib/apiError';
+import { emailField, strongPasswordField } from '@/lib/validationSchemas';
+import FormInput from '@/components/ui/FormInput';
+import SubmitButton from '@/components/ui/SubmitButton';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
+const resetPasswordSchema = z.object({
+  email: emailField,
+  pin: z.string().length(6, 'PIN must be exactly 6 digits').regex(/^\d+$/, 'PIN must contain only numbers'),
+  newPassword: strongPasswordField,
+});
+
+type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;
 
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  const [email, setEmail] = useState('');
-  const [pin, setPin] = useState('');
-  const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<ResetPasswordValues>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: { email: '', pin: '', newPassword: '' },
+  });
+
   useEffect(() => {
     const emailParam = searchParams.get('email');
-    if (emailParam) setEmail(emailParam);
-  }, [searchParams]);
+    if (emailParam) setValue('email', emailParam);
+  }, [searchParams, setValue]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (pin.length !== 6 || !/^\d+$/.test(pin)) {
-      toast.error('Please enter a valid 6-digit PIN.');
-      return;
-    }
-    if (newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters long.');
-      return;
-    }
-
+  const onSubmit = async (data: ResetPasswordValues) => {
     setLoading(true);
     try {
-      await api.post('/auth/reset-password', { email, pin, newPassword });
+      // Backend expects: { email, pin, password } — not newPassword
+      await api.post('/auth/reset-password', {
+        email: data.email,
+        pin: data.pin,
+        password: data.newPassword,
+      });
       setSuccess(true);
       toast.success('Password reset successfully!');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to reset password. Please check your PIN and try again.');
+      toast.error(getApiError(error, 'Failed to reset password. Please check your PIN and try again.'));
     } finally {
       setLoading(false);
     }
@@ -75,68 +85,46 @@ function ResetPasswordForm() {
         Enter the 6-digit PIN sent to your email along with your new password.
       </p>
 
-      <form className="space-y-5" onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
-            Email address
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="appearance-none block w-full px-3 py-2.5 border border-brand-border rounded-md shadow-sm bg-brand-input text-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition-colors"
-            placeholder="you@example.com"
-          />
-        </div>
+      <form className="space-y-5" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <FormInput
+          id="email"
+          label="Email address"
+          type="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          error={errors.email}
+          {...register('email')}
+        />
 
+        {/* PIN field uses custom styling — not using FormInput to keep centered mono font */}
         <div>
           <label htmlFor="pin" className="block text-sm font-medium text-gray-300 mb-1">
             6-Digit PIN
           </label>
           <input
             id="pin"
-            name="pin"
             type="text"
             inputMode="numeric"
-            pattern="\d{6}"
             maxLength={6}
-            required
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-            className="appearance-none block w-full px-3 py-2.5 border border-brand-border rounded-md shadow-sm bg-brand-input text-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition-colors tracking-[0.5em] text-center font-mono text-lg"
             placeholder="000000"
+            {...register('pin')}
+            className={`appearance-none block w-full px-3 py-2.5 border rounded-md shadow-sm bg-brand-input text-white placeholder-gray-500 focus:outline-none sm:text-sm transition-colors tracking-[0.5em] text-center font-mono text-lg ${errors.pin ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-brand-border focus:ring-primary focus:border-primary'}`}
           />
+          {errors.pin && <p className="mt-1 text-sm text-red-500 text-center tracking-normal">{errors.pin.message}</p>}
         </div>
 
-        <div>
-          <label htmlFor="newPassword" className="block text-sm font-medium text-gray-300 mb-1">
-            New Password
-          </label>
-          <input
-            id="newPassword"
-            name="newPassword"
-            type="password"
-            autoComplete="new-password"
-            required
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            className="appearance-none block w-full px-3 py-2.5 border border-brand-border rounded-md shadow-sm bg-brand-input text-white placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition-colors"
-            placeholder="At least 6 characters"
-          />
-        </div>
+        <FormInput
+          id="newPassword"
+          label="New Password"
+          type="password"
+          autoComplete="new-password"
+          placeholder="Min 8 chars, uppercase, number, special"
+          error={errors.newPassword}
+          {...register('newPassword')}
+        />
 
         <div className="pt-2">
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-bold text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary focus:ring-offset-brand-base disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? <FaSpinner className="animate-spin w-5 h-5" /> : 'Reset Password'}
-          </button>
+          <SubmitButton loading={loading} label="Reset Password" />
         </div>
       </form>
 

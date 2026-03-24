@@ -6,7 +6,9 @@ const {
   forgotPassword,
   resetPassword,
   logout,
+  toggleAdminSuspension,
 } = require("../controllers/authController");
+const { protect, authorize } = require("../middleware/authMiddleware");
 
 // POST /api/auth/signup
 router.post("/signup", signup);
@@ -22,5 +24,8 @@ router.post("/reset-password", resetPassword);
 
 // POST /api/auth/logout
 router.post("/logout", logout);
+
+// PUT /api/auth/admin/:id/suspend
+router.put("/admin/:id/suspend", protect, authorize("super_admin"), toggleAdminSuspension);
 
 module.exports = router;

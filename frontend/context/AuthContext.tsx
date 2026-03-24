@@ -12,6 +12,7 @@ interface AuthUser {
   role: string;
   restaurantId?: string;
   accessToken: string;
+  is_suspended?: boolean;
 }
 
 interface AuthContextType {

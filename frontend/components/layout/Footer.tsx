@@ -26,10 +26,10 @@ export default function Footer() {
           <div className="col-span-1">
             <h4 className="text-white font-semibold mb-4">Product</h4>
             <ul className="flex flex-col gap-3">
-              <li><Link href="#features" className="text-gray-400 hover:text-white transition-colors text-sm">Features</Link></li>
-              <li><Link href="#how-it-works" className="text-gray-400 hover:text-white transition-colors text-sm">How it Works</Link></li>
-              <li><Link href="#testimonials" className="text-gray-400 hover:text-white transition-colors text-sm">Customer Stories</Link></li>
-              <li><Link href="#faq" className="text-gray-400 hover:text-white transition-colors text-sm">FAQ</Link></li>
+              <li><Link href="/#features" className="text-gray-400 hover:text-white transition-colors text-sm">Features</Link></li>
+              <li><Link href="/#how-it-works" className="text-gray-400 hover:text-white transition-colors text-sm">How it Works</Link></li>
+              <li><Link href="/#testimonials" className="text-gray-400 hover:text-white transition-colors text-sm">Customer Stories</Link></li>
+              <li><Link href="/#faq" className="text-gray-400 hover:text-white transition-colors text-sm">FAQ</Link></li>
             </ul>
           </div>
 

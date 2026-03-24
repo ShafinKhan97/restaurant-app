@@ -51,6 +51,7 @@ const signup = async (req, res) => {
         name: admin.name,
         email: admin.email,
         role: admin.role,
+        is_suspended: admin.is_suspended || false,
       },
     });
   } catch (error) {
@@ -108,6 +109,7 @@ const login = async (req, res) => {
         name: admin.name,
         email: admin.email,
         role: admin.role,
+        is_suspended: admin.is_suspended || false,
       },
     });
   } catch (error) {
@@ -296,4 +298,43 @@ const logout = async (req, res) => {
   }
 };
 
-module.exports = { signup, login, forgotPassword, resetPassword, logout };
+// @desc    Toggle admin suspension status
+// @route   PUT /api/auth/admin/:id/suspend
+// @access  Private (Super Admin)
+const toggleAdminSuspension = async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.params.id);
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Prevent suspending another super admin
+    if (admin.role === "super_admin") {
+       return res.status(403).json({
+         success: false,
+         message: "Cannot suspend a super admin account",
+       });
+    }
+
+    admin.is_suspended = !admin.is_suspended;
+    await admin.save({ validateBeforeSave: false });
+
+    res.status(200).json({
+      success: true,
+      message: `Account has been ${admin.is_suspended ? 'suspended' : 'unsuspended'}`,
+      is_suspended: admin.is_suspended,
+    });
+  } catch (error) {
+    console.error("Toggle suspension error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+module.exports = { signup, login, forgotPassword, resetPassword, logout, toggleAdminSuspension };

@@ -343,7 +343,7 @@ const getRestaurantBySlug = async (req, res) => {
 const getAllRestaurants = async (req, res) => {
   try {
     const restaurants = await Restaurant.find({})
-      .populate("admin_id", "name email role")
+      .populate("admin_id", "name email role is_suspended")
       .sort("-created_at");
 
     // Also get item counts

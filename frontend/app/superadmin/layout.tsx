@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { 
   FaGlobe, 
   FaStore, 
@@ -22,6 +23,7 @@ export default function SuperAdminLayout({
   const router = useRouter();
   const { user, isLoading, logout } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   useEffect(() => {
     if (!isLoading) {
@@ -50,8 +52,10 @@ export default function SuperAdminLayout({
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-black/80 md:hidden transition-opacity"
+          className="fixed inset-0 z-40 bg-black/80 md:hidden transition-opacity cursor-pointer"
           onClick={() => setIsSidebarOpen(false)}
+          role="button"
+          aria-label="Close sidebar"
         />
       )}
 
@@ -105,7 +109,7 @@ export default function SuperAdminLayout({
             </div>
           )}
           <button
-            onClick={() => logout()}
+            onClick={() => setShowSignOutConfirm(true)}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-500 hover:text-white hover:bg-red-500/20 transition-colors"
           >
             <FaSignOutAlt className="w-5 h-5" />
@@ -113,6 +117,17 @@ export default function SuperAdminLayout({
           </button>
         </div>
       </aside>
+
+      <ConfirmDialog
+        isOpen={showSignOutConfirm}
+        title="Sign Out"
+        message="Are you sure you want to sign out?"
+        confirmLabel="Yes, Sign Out"
+        cancelLabel="Stay"
+        variant="danger"
+        onConfirm={() => { setShowSignOutConfirm(false); logout(); }}
+        onCancel={() => setShowSignOutConfirm(false)}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

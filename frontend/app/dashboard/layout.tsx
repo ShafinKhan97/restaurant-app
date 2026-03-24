@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { 
   FaChartPie, 
   FaUser, 
@@ -23,6 +24,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const { user, isLoading, logout } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -40,6 +42,27 @@ export default function DashboardLayout({
     );
   }
 
+  if (user.is_suspended) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-brand-base text-center p-6 bg-[url('/bg-noise.png')] bg-repeat bg-black/90">
+        <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mb-6 border border-red-500/20 shadow-glow">
+          <FaTimes className="text-red-500 w-10 h-10" />
+        </div>
+        <h1 className="text-3xl font-bold text-white mb-4">Account Suspended</h1>
+        <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">
+          Your account has been suspended. Please contact us at <a href="mailto:support@example.com" className="text-primary hover:underline">support@example.com</a> for further assistance.
+        </p>
+        <button
+          onClick={() => logout()}
+          className="px-6 py-3 bg-brand-surface border border-brand-border rounded-lg text-white font-medium hover:bg-brand-elevated transition-colors flex items-center gap-2"
+        >
+          <FaSignOutAlt />
+          Sign Out
+        </button>
+      </div>
+    );
+  }
+
   const navigation = [
     { name: 'Overview', href: '/dashboard', icon: FaChartPie },
     { name: 'Menu Items', href: '/dashboard/items', icon: FaUtensils },
@@ -52,8 +75,10 @@ export default function DashboardLayout({
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-black/80 md:hidden transition-opacity"
+          className="fixed inset-0 z-40 bg-black/80 md:hidden transition-opacity cursor-pointer"
           onClick={() => setIsSidebarOpen(false)}
+          role="button"
+          aria-label="Close sidebar"
         />
       )}
 
@@ -108,7 +133,7 @@ export default function DashboardLayout({
             </div>
           )}
           <button
-            onClick={() => logout()}
+            onClick={() => setShowSignOutConfirm(true)}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-500 hover:text-white hover:bg-red-500/20 transition-colors"
           >
             <FaSignOutAlt className="w-5 h-5" />
@@ -116,6 +141,17 @@ export default function DashboardLayout({
           </button>
         </div>
       </aside>
+
+      <ConfirmDialog
+        isOpen={showSignOutConfirm}
+        title="Sign Out"
+        message="Are you sure you want to sign out of your account?"
+        confirmLabel="Yes, Sign Out"
+        cancelLabel="Stay"
+        variant="danger"
+        onConfirm={() => { setShowSignOutConfirm(false); logout(); }}
+        onCancel={() => setShowSignOutConfirm(false)}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

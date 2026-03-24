@@ -36,6 +36,10 @@ const adminSchema = new mongoose.Schema(
       default: 3,
       min: [1, "Max restaurants must be at least 1"],
     },
+    is_suspended: {
+      type: Boolean,
+      default: false,
+    },
     reset_pin: {
       type: String,
       default: null,

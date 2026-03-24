@@ -1,16 +1,36 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { FaPlus, FaPencilAlt, FaTrash, FaImage, FaSearch, FaTimes, FaSpinner, FaUpload } from 'react-icons/fa';
+import { FaPlus, FaPencilAlt, FaTrash, FaImage, FaSearch, FaTimes, FaSpinner, FaUpload, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import FadeIn from '@/components/ui/FadeIn';
 import { useAuth } from '@/context/AuthContext';
 import apiClient from '@/lib/axios';
+import { getApiError } from '@/lib/apiError';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
+const restaurantSetupSchema = z.object({
+  restaurantName: z.string().min(1, 'Restaurant name is required')
+});
+type RestaurantSetupValues = z.infer<typeof restaurantSetupSchema>;
+
+const menuItemSchema = z.object({
+  name: z.string().min(1, 'Item name is required'),
+  category_name: z.string().min(1, 'Category is required'),
+  price: z.coerce.number({ message: 'Price must be a number' }).min(0, 'Price must be 0 or higher'),
+  discount_type: z.enum(['none', 'percentage', 'fixed']),
+  discount_value: z.coerce.number().min(0).optional(),
+  description: z.string().min(1, 'Description is required')
+});
+type MenuItemValues = z.infer<typeof menuItemSchema>;
 
 export default function MenuItemsPage() {
   const { user, updateUser } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   
@@ -19,36 +39,46 @@ export default function MenuItemsPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   
+  // Custom tracking logic for ID and images since Zod doesn't need to validate these meta fields
+  const [itemId, setItemId] = useState('');
+  const [imageAssetId, setImageAssetId] = useState('');
+  
   // Image file state
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
   const previewUrlRef = useRef<string>('');
-  
-  // Form state maps to the actual backend MenuItem schema
-  const [formData, setFormData] = useState({ 
-    _id: '',
-    name: '', 
-    description: '', 
-    price: '', 
-    category_name: '', 
-    discount_type: 'none',
-    discount_value: '',
-    image_url: '',
-    imageAssetId: '' // tracks existing image asset for PUT
+
+  const setupForm = useForm<RestaurantSetupValues>({
+    resolver: zodResolver(restaurantSetupSchema)
   });
+
+  const itemForm = useForm<MenuItemValues>({
+    resolver: zodResolver(menuItemSchema) as any,
+    defaultValues: {
+      name: '',
+      description: '',
+      price: 0,
+      category_name: '',
+      discount_type: 'none',
+      discount_value: 0
+    }
+  });
+
+  // Derived state to make UI react to discount_type changes
+  const discountType = itemForm.watch('discount_type');
 
   const fetchItems = async () => {
     if (!user || !user.restaurantId) {
-       setIsLoading(false);
-       return;
+      setIsLoading(false);
+      return;
     }
-    
+    setFetchError(false);
     try {
       const { data } = await apiClient.get(`/restaurants/${user.restaurantId}/menu-items`);
       setItems(data.menuItems || []);
-    } catch (error) {
-      console.error("Failed to load menu items", error);
-      toast.error("Could not load your menu items from the server.");
+    } catch (error: any) {
+      setFetchError(true);
+      toast.error(getApiError(error, 'Could not load your menu items from the server.'));
     } finally {
       setIsLoading(false);
     }
@@ -58,7 +88,6 @@ export default function MenuItemsPage() {
     fetchItems();
   }, [user]);
 
-  // Derive categories dynamically from currently fetched items
   const categories = ['All', ...Array.from(new Set(items.map(item => item.category_name).filter(Boolean)))];
   
   const filteredItems = items.filter(item => {
@@ -72,7 +101,6 @@ export default function MenuItemsPage() {
   });
 
   const closeModal = () => {
-    // Revoke the object URL to avoid memory leaks
     if (previewUrlRef.current) {
       URL.revokeObjectURL(previewUrlRef.current);
       previewUrlRef.current = '';
@@ -83,17 +111,16 @@ export default function MenuItemsPage() {
   };
 
   const openAddModal = () => {
-    setFormData({ 
-      _id: '', 
-      name: '', 
-      description: '', 
-      price: '', 
+    itemForm.reset({
+      name: '',
+      description: '',
+      price: 0,
       category_name: activeCategory === 'All' ? '' : activeCategory,
       discount_type: 'none',
-      discount_value: '',
-      image_url: '',
-      imageAssetId: ''
+      discount_value: 0
     });
+    setItemId('');
+    setImageAssetId('');
     setImageFile(null);
     setImagePreview('');
     setIsEditing(false);
@@ -101,19 +128,17 @@ export default function MenuItemsPage() {
   };
 
   const openEditModal = (item: any) => {
-    // Pull the first image asset ID from the item if it exists
     const imageAsset = item.image_assets?.[0];
-    setFormData({ 
-      _id: item._id, 
-      name: item.name, 
-      description: item.description || '', 
-      price: item.price?.toString() || '', 
+    itemForm.reset({
+      name: item.name,
+      description: item.description || '',
+      price: Number(item.price) || 0,
       category_name: item.category_name,
       discount_type: item.discount_type || 'none',
-      discount_value: item.discount_value?.toString() || '',
-      image_url: item.image_url || '',
-      imageAssetId: imageAsset?._id || ''
+      discount_value: Number(item.discount_value) || 0
     });
+    setItemId(item._id);
+    setImageAssetId(imageAsset?._id || '');
     setImageFile(null);
     setImagePreview(item.image_url || '');
     setIsEditing(true);
@@ -152,22 +177,32 @@ export default function MenuItemsPage() {
     ), { duration: 5000 });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const onSetupSubmit = async (data: RestaurantSetupValues) => {
+    try {
+      toast.loading('Creating restaurant setup...', { id: 'setup' });
+      const res = await apiClient.post('/restaurants', { name: data.restaurantName });
+      
+      updateUser({ restaurantId: res.data.restaurant._id });
+      
+      toast.success('Restaurant created successfully!', { id: 'setup' });
+    } catch (err) {
+      toast.error('Failed to create restaurant setup', { id: 'setup' });
+    }
+  };
+
+  const onItemSubmit = async (data: MenuItemValues) => {
     if (!user || !user.restaurantId) {
        toast.error("Cannot save item. Restaurant missing.");
        return;
     }
 
-    // image_url is NOT sent here — backend manages it via /image-assets endpoint
     const payload = {
-      name: formData.name,
-      description: formData.description,
-      price: Number(formData.price),
-      category_name: formData.category_name,
-      discount_type: formData.discount_type,
-      discount_value: formData.discount_type !== 'none' ? Number(formData.discount_value) : 0,
+      name: data.name,
+      description: data.description,
+      price: data.price,
+      category_name: data.category_name,
+      discount_type: data.discount_type,
+      discount_value: data.discount_type !== 'none' ? data.discount_value : 0,
       availability: 'available'
     };
 
@@ -175,18 +210,17 @@ export default function MenuItemsPage() {
       let savedItem: any;
 
       if (isEditing) {
-        const { data } = await apiClient.put(`/restaurants/${user.restaurantId}/menu-items/${formData._id}`, payload);
-        savedItem = data.menuItem;
-        setItems(prev => prev.map(item => item._id === formData._id ? savedItem : item));
+        const res = await apiClient.put(`/restaurants/${user.restaurantId}/menu-items/${itemId}`, payload);
+        savedItem = res.data.menuItem;
+        setItems(prev => prev.map(item => item._id === itemId ? savedItem : item));
         toast.success('Item updated successfully');
       } else {
-        const { data } = await apiClient.post(`/restaurants/${user.restaurantId}/menu-items`, payload);
-        savedItem = data.menuItem;
+        const res = await apiClient.post(`/restaurants/${user.restaurantId}/menu-items`, payload);
+        savedItem = res.data.menuItem;
         setItems(prev => [savedItem, ...prev]);
         toast.success('New item added to menu');
       }
 
-      // Upload image if a new file was selected
       if (imageFile && savedItem?._id) {
         setIsUploading(true);
         try {
@@ -194,15 +228,13 @@ export default function MenuItemsPage() {
           formDataImage.append('image', imageFile);
 
           let imageResponse;
-          if (isEditing && formData.imageAssetId) {
-            // Update existing image asset
+          if (isEditing && imageAssetId) {
             imageResponse = await apiClient.put(
-              `/restaurants/${user.restaurantId}/menu-items/${savedItem._id}/image-assets/${formData.imageAssetId}`,
+              `/restaurants/${user.restaurantId}/menu-items/${savedItem._id}/image-assets/${imageAssetId}`,
               formDataImage,
               { headers: { 'Content-Type': 'multipart/form-data' } }
             );
           } else {
-            // Upload new image asset
             imageResponse = await apiClient.post(
               `/restaurants/${user.restaurantId}/menu-items/${savedItem._id}/image-assets`,
               formDataImage,
@@ -210,7 +242,6 @@ export default function MenuItemsPage() {
             );
           }
 
-          // Update the item in local state with the new image URL from S3
           const uploadedAsset = imageResponse.data?.imageAsset || imageResponse.data;
           const newImageUrl = uploadedAsset?.original_url || uploadedAsset?.image_url || uploadedAsset?.url || '';
           if (newImageUrl) {
@@ -235,10 +266,7 @@ export default function MenuItemsPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Revoke previous preview URL to avoid memory leaks
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current);
-      }
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       const objectUrl = URL.createObjectURL(file);
       previewUrlRef.current = objectUrl;
       setImageFile(file);
@@ -255,36 +283,42 @@ export default function MenuItemsPage() {
          <h2 className="text-2xl font-bold text-white mb-3">Configure Your Restaurant First</h2>
          <p className="text-gray-400 max-w-md mx-auto mb-8">You need an active restaurant configuration before you can add menu items. It seems your account hasn't been linked to a restaurant yet.</p>
          
-         <form 
-            onSubmit={async (e: any) => {
-              e.preventDefault();
-              const name = e.target.restaurantName.value;
-              try {
-                // Manually create one and update auth state
-                toast.loading('Creating restaurant setup...', { id: 'setup' });
-                const res = await apiClient.post('/restaurants', { name });
-                
-                // CRITICAL FIX: The user's JWT now has a restaurant! Update the auth context so the page re-renders properly
-                updateUser({ restaurantId: res.data.restaurant._id });
-                
-                toast.success('Restaurant created successfully!', { id: 'setup' });
-              } catch (err) {
-                toast.error('Failed to create restaurant setup', { id: 'setup' });
-              }
-            }}
-            className="flex flex-col sm:flex-row gap-3 items-center max-w-sm w-full mx-auto"
-         >
-            <input 
-              name="restaurantName"
-              type="text" 
-              required
-              placeholder="e.g. My Awesome Cafe"
-              className="w-full px-4 py-3 bg-brand-surface border border-brand-border rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-primary"
-            />
-            <button type="submit" className="w-full sm:w-auto px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg whitespace-nowrap shadow-glow transition-colors">
-              Create Now
-            </button>
+         <form onSubmit={setupForm.handleSubmit(onSetupSubmit)} className="w-full max-w-sm mx-auto" noValidate>
+            <div className="flex flex-col sm:flex-row gap-3 items-start w-full">
+              <div className="w-full flex-1">
+                <input 
+                  type="text" 
+                  {...setupForm.register('restaurantName')}
+                  placeholder="e.g. My Awesome Cafe"
+                  className={`w-full px-4 py-3 bg-brand-surface border rounded-lg text-white placeholder-gray-500 focus:outline-none transition-colors ${setupForm.formState.errors.restaurantName ? 'border-red-500 focus:border-red-500 text-sm' : 'border-brand-border focus:border-primary'}`}
+                />
+                {setupForm.formState.errors.restaurantName && <p className="mt-1 text-sm text-red-500 text-left">{setupForm.formState.errors.restaurantName.message}</p>}
+              </div>
+              <button type="submit" className="w-full sm:w-auto px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg whitespace-nowrap shadow-glow transition-colors mt-0">
+                Create Now
+              </button>
+            </div>
          </form>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-5">
+          <FaExclamationTriangle className="w-7 h-7 text-red-500" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">Failed to Load Menu Items</h2>
+        <p className="text-gray-400 text-sm max-w-xs mb-6">
+          Could not fetch your menu items from the server. Please check your connection and try again.
+        </p>
+        <button
+          onClick={fetchItems}
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          <FaRedo className="w-4 h-4" /> Retry
+        </button>
       </div>
     );
   }
@@ -441,48 +475,44 @@ export default function MenuItemsPage() {
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 overflow-y-auto">
+            <form onSubmit={itemForm.handleSubmit(onItemSubmit)} className="p-6 overflow-y-auto" noValidate>
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">Item Name</label>
                   <input
-                    required
                     type="text"
-                    value={formData.name}
-                    onChange={e => setFormData({...formData, name: e.target.value})}
-                    className="w-full px-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:border-primary"
+                    {...itemForm.register('name')}
+                    className={`w-full px-3 py-2.5 border rounded-lg bg-brand-input text-white focus:outline-none transition-colors ${itemForm.formState.errors.name ? 'border-red-500 focus:border-red-500' : 'border-brand-border focus:border-primary'}`}
                     placeholder="e.g. Spicy Chicken Burger"
                   />
+                  {itemForm.formState.errors.name && <p className="mt-1 text-sm text-red-500">{itemForm.formState.errors.name.message}</p>}
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Category</label>
                     <input
-                      required
                       type="text"
-                      value={formData.category_name}
-                      onChange={e => setFormData({...formData, category_name: e.target.value})}
-                      className="w-full px-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:border-primary"
+                      {...itemForm.register('category_name')}
+                      className={`w-full px-3 py-2.5 border rounded-lg bg-brand-input text-white focus:outline-none transition-colors ${itemForm.formState.errors.category_name ? 'border-red-500 focus:border-red-500' : 'border-brand-border focus:border-primary'}`}
                       placeholder="e.g. Burgers"
                     />
+                    {itemForm.formState.errors.category_name && <p className="mt-1 text-sm text-red-500">{itemForm.formState.errors.category_name.message}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Base Price ($)</label>
                     <input
-                      required
                       type="number"
                       step="0.01"
                       min="0"
-                      value={formData.price}
-                      onChange={e => setFormData({...formData, price: e.target.value})}
-                      className="w-full px-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:border-primary"
+                      {...itemForm.register('price')}
+                      className={`w-full px-3 py-2.5 border rounded-lg bg-brand-input text-white focus:outline-none transition-colors ${itemForm.formState.errors.price ? 'border-red-500 focus:border-red-500' : 'border-brand-border focus:border-primary'}`}
                       placeholder="0.00"
                     />
+                    {itemForm.formState.errors.price && <p className="mt-1 text-sm text-red-500">{itemForm.formState.errors.price.message}</p>}
                   </div>
                 </div>
 
-                {/* Direct Discount Setup */}
                 <div className="grid grid-cols-2 gap-4 bg-brand-base p-4 rounded-lg border border-brand-border">
                   <div className="col-span-2">
                     <span className="text-sm font-bold text-gray-200">Applying a Discount?</span>
@@ -490,8 +520,9 @@ export default function MenuItemsPage() {
                   </div>
                   <div>
                     <select
-                      value={formData.discount_type}
-                      onChange={e => setFormData({...formData, discount_type: e.target.value, discount_value: ''})}
+                      {...itemForm.register('discount_type', {
+                        onChange: (e) => itemForm.setValue('discount_value', 0)
+                      })}
                       className="w-full px-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:border-primary appearance-none text-sm"
                     >
                       <option value="none">No Discount</option>
@@ -504,28 +535,26 @@ export default function MenuItemsPage() {
                       type="number"
                       step="0.01"
                       min="0"
-                      disabled={formData.discount_type === 'none'}
-                      value={formData.discount_value}
-                      onChange={e => setFormData({...formData, discount_value: e.target.value})}
-                      className="w-full px-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:border-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      placeholder={formData.discount_type === 'percentage' ? "e.g. 10%" : formData.discount_type === 'fixed' ? "e.g. Rs. 200" : "N/A"}
+                      disabled={discountType === 'none'}
+                      {...itemForm.register('discount_value')}
+                      className={`w-full px-3 py-2.5 border rounded-lg bg-brand-input text-white focus:outline-none text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${itemForm.formState.errors.discount_value ? 'border-red-500 focus:border-red-500' : 'border-brand-border focus:border-primary'}`}
+                      placeholder={discountType === 'percentage' ? "e.g. 10%" : discountType === 'fixed' ? "e.g. Rs. 200" : "N/A"}
                     />
+                    {itemForm.formState.errors.discount_value && <p className="mt-1 text-sm text-red-500">{itemForm.formState.errors.discount_value.message}</p>}
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
                   <textarea
-                    required
                     rows={3}
-                    value={formData.description}
-                    onChange={e => setFormData({...formData, description: e.target.value})}
-                    className="w-full px-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:border-primary resize-none"
+                    {...itemForm.register('description')}
+                    className={`w-full px-3 py-2.5 border rounded-lg bg-brand-input text-white focus:outline-none resize-none transition-colors ${itemForm.formState.errors.description ? 'border-red-500 focus:border-red-500' : 'border-brand-border focus:border-primary'}`}
                     placeholder="Brief description of the dish..."
                   />
+                  {itemForm.formState.errors.description && <p className="mt-1 text-sm text-red-500">{itemForm.formState.errors.description.message}</p>}
                 </div>
                 
-                {/* S3 Image Upload */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">Item Image</label>
                   

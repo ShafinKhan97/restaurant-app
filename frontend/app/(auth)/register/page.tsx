@@ -4,52 +4,56 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
-import { FaSpinner } from 'react-icons/fa';
 import apiClient from '@/lib/axios';
+import { getApiError } from '@/lib/apiError';
+import { emailField, strongPasswordField } from '@/lib/validationSchemas';
 import { useAuth } from '@/context/AuthContext';
+import FormInput from '@/components/ui/FormInput';
+import SubmitButton from '@/components/ui/SubmitButton';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
+const registerSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  email: emailField,
+  password: strongPasswordField,
+  restaurantName: z.string().min(1, 'Restaurant name is required'),
+});
+
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
-  
-  // Universal registration form fields
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    restaurantName: '',
+
+  const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (data: RegisterFormValues) => {
     setLoading(true);
-
     try {
-      // 1. Create Admin User
       const adminResponse = await apiClient.post('/auth/signup', {
-        name: `${formData.firstName} ${formData.lastName}`.trim(),
-        email: formData.email,
-        password: formData.password,
-        role: 'restaurant_admin'
+        name: `${data.firstName} ${data.lastName}`.trim(),
+        email: data.email,
+        password: data.password,
+        role: 'restaurant_admin',
       });
 
       const token = adminResponse.data.token;
 
-      // 2. Automatically Create the Restaurant for this Admin
-      const restaurantResponse = await apiClient.post('/restaurants', {
-        name: formData.restaurantName
-      }, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const restaurantResponse = await apiClient.post(
+        '/restaurants',
+        { name: data.restaurantName },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
       const restaurantId = restaurantResponse.data.restaurant._id;
       const adminData = adminResponse.data.admin;
 
-      // 3. Auto-login: populate AuthContext and go straight to dashboard
       login(token, {
         id: adminData.id,
         email: adminData.email,
@@ -62,8 +66,7 @@ export default function RegisterPage() {
       toast.success(`Welcome, ${adminData.name}! Your account is ready.`);
       router.push('/dashboard');
     } catch (error: any) {
-      const errorMsg = error.response?.data?.message || 'Registration failed. Please try again.';
-      toast.error(errorMsg);
+      toast.error(getApiError(error, 'Registration failed. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -75,77 +78,27 @@ export default function RegisterPage() {
         Create your account
       </h2>
 
-      <form className="space-y-4" onSubmit={handleSubmit}>
+      <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-gray-300 mb-1">First Name</label>
-            <input
-              id="firstName"
-              type="text"
-              required
-              value={formData.firstName}
-              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-              className="block w-full px-3 py-2.5 border border-brand-border rounded-md shadow-sm bg-brand-input text-white focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-gray-300 mb-1">Last Name</label>
-            <input
-              id="lastName"
-              type="text"
-              required
-              value={formData.lastName}
-              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-              className="block w-full px-3 py-2.5 border border-brand-border rounded-md shadow-sm bg-brand-input text-white focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-            />
-          </div>
+          <FormInput id="firstName" label="First Name" type="text" error={errors.firstName} {...register('firstName')} />
+          <FormInput id="lastName" label="Last Name" type="text" error={errors.lastName} {...register('lastName')} />
         </div>
 
-        <div>
-          <label htmlFor="restaurantName" className="block text-sm font-medium text-gray-300 mb-1">Restaurant / Brand Name</label>
-          <input
-            id="restaurantName"
-            type="text"
-            required
-            placeholder="e.g. Pizza Palace"
-            value={formData.restaurantName}
-            onChange={(e) => setFormData({ ...formData, restaurantName: e.target.value })}
-            className="block w-full px-3 py-2.5 border border-brand-border rounded-md shadow-sm bg-brand-input text-white focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-          />
-        </div>
+        <FormInput
+          id="restaurantName"
+          label="Restaurant / Brand Name"
+          type="text"
+          placeholder="e.g. Pizza Palace"
+          error={errors.restaurantName}
+          {...register('restaurantName')}
+        />
 
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">Email address</label>
-          <input
-            id="email"
-            type="email"
-            required
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            className="block w-full px-3 py-2.5 border border-brand-border rounded-md shadow-sm bg-brand-input text-white focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-          />
-        </div>
+        <FormInput id="email" label="Email address" type="email" error={errors.email} {...register('email')} />
 
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">Password</label>
-          <input
-            id="password"
-            type="password"
-            required
-            value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            className="block w-full px-3 py-2.5 border border-brand-border rounded-md shadow-sm bg-brand-input text-white focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-          />
-        </div>
+        <FormInput id="password" label="Password" type="password" error={errors.password} {...register('password')} />
 
         <div className="pt-4">
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-bold text-white bg-primary hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary focus:ring-offset-brand-base disabled:opacity-50 transition-colors"
-          >
-            {loading ? <FaSpinner className="animate-spin w-5 h-5" /> : 'Register'}
-          </button>
+          <SubmitButton loading={loading} label="Register" />
         </div>
       </form>
 
