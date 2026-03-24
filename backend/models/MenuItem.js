@@ -144,50 +144,39 @@ const validateDiscountLogic = (type, value) => {
 };
 
 // Pre-save hook
-menuItemSchema.pre("save", async function (next) {
-  try {
-    validateDiscountLogic(this.discount_type, this.discount_value);
-    validateVariants(this.variant);
+menuItemSchema.pre("save", async function () {
+  validateDiscountLogic(this.discount_type, this.discount_value);
+  validateVariants(this.variant);
 
-    if (this.isModified("restaurant_id") || this.isNew) {
-      await validateRestaurantExists(this.restaurant_id);
-    }
-    next();
-  } catch (error) {
-    next(error);
+  if (this.isModified("restaurant_id") || this.isNew) {
+    await validateRestaurantExists(this.restaurant_id);
   }
 });
 
 // Pre-update hooks (findOneAndUpdate, updateOne)
-menuItemSchema.pre(["findOneAndUpdate", "updateOne"], async function (next) {
-  try {
-    const update = this.getUpdate();
-    const docToUpdate = await this.model.findOne(this.getQuery());
-    if (!docToUpdate) return next();
+menuItemSchema.pre(["findOneAndUpdate", "updateOne"], async function () {
+  const update = this.getUpdate();
+  const docToUpdate = await this.model.findOne(this.getQuery());
+  if (!docToUpdate) return;
 
-    const mergedDiscountType = update.$set?.discount_type !== undefined 
-      ? update.$set.discount_type 
-      : update.discount_type !== undefined ? update.discount_type : docToUpdate.discount_type;
+  const mergedDiscountType = update.$set?.discount_type !== undefined 
+    ? update.$set.discount_type 
+    : update.discount_type !== undefined ? update.discount_type : docToUpdate.discount_type;
 
-    const mergedDiscountValue = update.$set?.discount_value !== undefined 
-      ? update.$set.discount_value 
-      : update.discount_value !== undefined ? update.discount_value : docToUpdate.discount_value;
+  const mergedDiscountValue = update.$set?.discount_value !== undefined 
+    ? update.$set.discount_value 
+    : update.discount_value !== undefined ? update.discount_value : docToUpdate.discount_value;
 
-    validateDiscountLogic(mergedDiscountType, mergedDiscountValue);
+  validateDiscountLogic(mergedDiscountType, mergedDiscountValue);
 
-    const variants = update.$set?.variant || update.variant;
-    if (variants) {
-      validateVariants(variants);
-    }
+  const variants = update.$set?.variant || update.variant;
+  if (variants) {
+    validateVariants(variants);
+  }
 
-    const checkRestaurantId = update.$set?.restaurant_id || update.restaurant_id;
-    if (checkRestaurantId && checkRestaurantId.toString() !== docToUpdate.restaurant_id.toString()) {
-      await validateRestaurantExists(checkRestaurantId);
-    }
-    
-    next();
-  } catch (error) {
-    next(error);
+  const checkRestaurantId = update.$set?.restaurant_id || update.restaurant_id;
+  if (checkRestaurantId && checkRestaurantId.toString() !== docToUpdate.restaurant_id.toString()) {
+    await validateRestaurantExists(checkRestaurantId);
   }
 });
 

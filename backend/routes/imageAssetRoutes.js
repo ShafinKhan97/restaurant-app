@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router({ mergeParams: true }); // mergeParams to access :restaurantId and :menuItemId
 const { protect, authorize } = require("../middleware/authMiddleware");
+const { handleUpload } = require("../middleware/upload");
 const {
   createImageAsset,
   getImageAssets,
@@ -13,12 +14,12 @@ const {
 // All routes are protected — only restaurant_admin and super_admin
 router.use(protect, authorize("restaurant_admin", "super_admin"));
 
-router.route("/").post(createImageAsset).get(getImageAssets);
+router.route("/").post(handleUpload, createImageAsset).get(getImageAssets);
 
 router
   .route("/:imageId")
   .get(getImageAsset)
-  .put(updateImageAsset)
+  .put(handleUpload, updateImageAsset)
   .delete(deleteImageAsset);
 
 module.exports = router;

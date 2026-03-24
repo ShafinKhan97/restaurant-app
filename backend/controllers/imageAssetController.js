@@ -117,8 +117,14 @@ const createImageAsset = async (req, res) => {
 
     const { original_url, enhanced_url, ai_processed } = req.body;
 
+    // Prefer uploaded file URL (multer-s3) over manual body URL.
+    const uploadedUrl = req.file?.location || req.file?.key;
+    const finalOriginalUrl = uploadedUrl || original_url;
+    const parsedAiProcessed =
+      ai_processed === true || ai_processed === "true" ? true : false;
+
     // Validate original_url
-    if (!original_url || !original_url.trim()) {
+    if (!finalOriginalUrl || !String(finalOriginalUrl).trim()) {
       return res.status(400).json({
         success: false,
         message: "Please provide an original image URL",
@@ -127,9 +133,9 @@ const createImageAsset = async (req, res) => {
 
     const imageAsset = await ImageAsset.create({
       menu_id: req.params.menuItemId,
-      original_url: original_url.trim(),
+      original_url: String(finalOriginalUrl).trim(),
       enhanced_url: enhanced_url || null,
-      ai_processed: ai_processed || false,
+      ai_processed: parsedAiProcessed,
     });
 
     res.status(201).json({
@@ -275,9 +281,18 @@ const updateImageAsset = async (req, res) => {
       });
     }
 
-    // Update original_url if provided
-    if (req.body.original_url !== undefined) {
-      const trimmedUrl = req.body.original_url.trim();
+    const parsedAiProcessed =
+      req.body.ai_processed === true || req.body.ai_processed === "true"
+        ? true
+        : req.body.ai_processed === false || req.body.ai_processed === "false"
+          ? false
+          : undefined;
+
+    // Update original_url if file uploaded, otherwise update from body.
+    if (req.file?.location || req.file?.key) {
+      imageAsset.original_url = req.file.location || req.file.key;
+    } else if (req.body.original_url !== undefined) {
+      const trimmedUrl = String(req.body.original_url).trim();
       if (!trimmedUrl) {
         return res.status(400).json({
           success: false,
@@ -294,8 +309,8 @@ const updateImageAsset = async (req, res) => {
     }
 
     // Update ai_processed if provided
-    if (req.body.ai_processed !== undefined) {
-      imageAsset.ai_processed = req.body.ai_processed;
+    if (parsedAiProcessed !== undefined) {
+      imageAsset.ai_processed = parsedAiProcessed;
     }
 
     await imageAsset.save();

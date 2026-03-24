@@ -16,10 +16,12 @@ const restaurantSchema = new mongoose.Schema(
       maxlength: [100, "Restaurant name cannot exceed 100 characters"],
       validate: {
         validator: function (v) {
-          // After trim, must not be empty
-          return v && v.trim().length >= 2;
+          if (!v) return false;
+          const trimmed = v.trim();
+          if (trimmed.length < 2) return false;
+          return /^[\p{L}]+(?:['-][\p{L}]+)*(?:\s+[\p{L}]+(?:['-][\p{L}]+)*)*$/u.test(trimmed);
         },
-        message: "Restaurant name must contain at least 2 non-whitespace characters",
+        message: "Restaurant name can contain letters, spaces, apostrophes, and hyphens only (min 2 characters)",
       },
     },
     slug: {
@@ -60,11 +62,19 @@ const restaurantSchema = new mongoose.Schema(
         message: "Banner image must be a valid HTTP/HTTPS URL",
       },
     },
+   
     address: {
       type: String,
       default: null,
       maxlength: [500, "Address cannot exceed 500 characters"],
       set: (v) => (v === "" ? null : v),
+      validate: {
+        validator: function (v) {
+          if (v === null || v === undefined) return true; // optional
+          return v.trim().length >= 1;
+        },
+        message: "Address must contain at least 1 characters",
+      },
     },
     contact: {
       type: String,
@@ -73,11 +83,18 @@ const restaurantSchema = new mongoose.Schema(
       validate: {
         validator: function (v) {
           if (v === null || v === undefined) return true;
-          // Allow digits, spaces, +, -, (), dots — 7 to 20 chars
-          return /^[\d\s+\-().]{7,20}$/.test(v);
+          const trimmed = v.trim();
+          // Allow digits, spaces, +, -, (), dots.
+          // '+' should only appear at the beginning if provided.
+          if (!/^[+]?[\d\s().\-]*$/.test(trimmed)) return false;
+          if (trimmed.includes("+") && !trimmed.startsWith("+")) return false;
+
+          // Validate by digit count (typical international numbers: 10-15 digits).
+          const digitsOnly = trimmed.replace(/\D/g, "");
+          return digitsOnly.length >= 10 && digitsOnly.length <= 15;
         },
         message:
-          "Contact must be a valid phone number (7-20 characters, digits, spaces, +, -, ())",
+          "Contact must be a valid phone number (10-15 digits; optional +, spaces, dashes, parentheses)",
       },
     },
   },

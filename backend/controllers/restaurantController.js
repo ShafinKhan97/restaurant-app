@@ -51,8 +51,15 @@ const createRestaurant = async (req, res) => {
   try {
     const { name } = req.body;
 
+    if (typeof name !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a restaurant name",
+      });
+    }
+
     // Validate name (trim and check)
-    const trimmedName = name ? name.trim() : "";
+    const trimmedName = name.trim();
     if (!trimmedName || trimmedName.length < 2) {
       return res.status(400).json({
         success: false,
@@ -203,6 +210,13 @@ const updateRestaurant = async (req, res) => {
 
     // Validate name if being updated
     if (req.body.name !== undefined) {
+      if (typeof req.body.name !== "string") {
+        return res.status(400).json({
+          success: false,
+          message: "Restaurant name must be a string",
+        });
+      }
+
       const trimmedName = req.body.name.trim();
       if (!trimmedName || trimmedName.length < 2) {
         return res.status(400).json({
@@ -293,16 +307,27 @@ const deleteRestaurant = async (req, res) => {
 // @access  Public
 const getRestaurantBySlug = async (req, res) => {
   try {
+    const slug = String(req.params.slug || "")
+      .trim()
+      .toLowerCase();
+
+    if (!slug) {
+      return res.status(400).json({
+        success: false,
+        message: "Slug is required",
+      });
+    }
+
     // First try active restaurant by current slug
     let restaurant = await Restaurant.findOne({
-      slug: req.params.slug,
+      slug: slug,
       is_active: true,
     });
 
     // If not found, check previous_slugs for redirect support
     if (!restaurant) {
       restaurant = await Restaurant.findOne({
-        previous_slugs: req.params.slug,
+        previous_slugs: slug,
         is_active: true,
       });
 
