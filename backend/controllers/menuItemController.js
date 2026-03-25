@@ -105,7 +105,14 @@ const createMenuItem = async (req, res) => {
     } = req.body;
 
     // Validate name
-    const trimmedName = name ? name.trim() : "";
+    if (typeof name !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a menu item name",
+      });
+    }
+
+    const trimmedName = name.trim();
     if (!trimmedName || trimmedName.length < 2) {
       return res.status(400).json({
         success: false,
@@ -115,7 +122,14 @@ const createMenuItem = async (req, res) => {
     }
 
     // Validate category_name
-    const trimmedCategory = category_name ? category_name.trim() : "";
+    if (typeof category_name !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a category name",
+      });
+    }
+
+    const trimmedCategory = category_name.trim();
     if (!trimmedCategory) {
       return res.status(400).json({
         success: false,
@@ -274,6 +288,13 @@ const updateMenuItem = async (req, res) => {
 
     // Validate name if being updated
     if (req.body.name !== undefined) {
+      if (typeof req.body.name !== "string") {
+        return res.status(400).json({
+          success: false,
+          message: "Menu item name must be a string",
+        });
+      }
+
       const trimmedName = req.body.name.trim();
       if (!trimmedName || trimmedName.length < 2) {
         return res.status(400).json({
@@ -287,6 +308,13 @@ const updateMenuItem = async (req, res) => {
 
     // Validate category_name if being updated
     if (req.body.category_name !== undefined) {
+      if (typeof req.body.category_name !== "string") {
+        return res.status(400).json({
+          success: false,
+          message: "Category name must be a string",
+        });
+      }
+
       const trimmedCategory = req.body.category_name.trim();
       if (!trimmedCategory) {
         return res.status(400).json({
