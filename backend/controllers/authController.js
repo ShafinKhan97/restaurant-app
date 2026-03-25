@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const Admin = require("../models/Admin");
 const sendEmail = require("../utils/sendEmail");
+const { generatePinEmailTemplate } = require("../utils/emailTemplates");
 
 // Generate JWT token
 const generateToken = (admin) => {
@@ -80,17 +81,12 @@ const signup = async (req, res) => {
     const verificationPin = admin.generateVerificationPin();
     await admin.save({ validateBeforeSave: false });
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
-        <h2 style="color: #333;">Verify Your Email</h2>
-        <p>Thank you for signing up. Use the PIN below to verify your email address:</p>
-        <div style="background: #f4f4f4; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
-          <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">${verificationPin}</span>
-        </div>
-        <p style="color: #666;">This PIN will expire in <strong>10 minutes</strong>.</p>
-        <p style="color: #999; font-size: 12px;">If you didn't create an account, please ignore this email.</p>
-      </div>
-    `;
+    const html = generatePinEmailTemplate(
+      "Verify Your Email",
+      "Thank you for signing up. Use the PIN below to verify your email address:",
+      verificationPin,
+      "If you didn't create an account, please ignore this email."
+    );
 
     try {
       await sendEmail({
@@ -220,16 +216,11 @@ const resendVerification = async (req, res) => {
     const verificationPin = admin.generateVerificationPin();
     await admin.save({ validateBeforeSave: false });
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
-        <h2 style="color: #333;">Verify Your Email</h2>
-        <p>Here is your new verification PIN:</p>
-        <div style="background: #f4f4f4; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
-          <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">${verificationPin}</span>
-        </div>
-        <p style="color: #666;">This PIN will expire in <strong>10 minutes</strong>.</p>
-      </div>
-    `;
+    const html = generatePinEmailTemplate(
+      "Verify Your Email",
+      "Here is your new verification PIN:",
+      verificationPin
+    );
 
     try {
       await sendEmail({
@@ -350,17 +341,12 @@ const forgotPassword = async (req, res) => {
     const resetPin = admin.generateResetPin();
     await admin.save({ validateBeforeSave: false });
 
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
-        <h2 style="color: #333;">Password Reset</h2>
-        <p>Use the following PIN to reset your password:</p>
-        <div style="background: #f4f4f4; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
-          <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">${resetPin}</span>
-        </div>
-        <p style="color: #666;">This PIN will expire in <strong>10 minutes</strong>.</p>
-        <p style="color: #999; font-size: 12px;">If you didn't request this, please ignore this email.</p>
-      </div>
-    `;
+    const html = generatePinEmailTemplate(
+      "Password Reset",
+      "Use the following PIN to reset your password:",
+      resetPin,
+      "If you didn't request this, please ignore this email."
+    );
 
     try {
       await sendEmail({

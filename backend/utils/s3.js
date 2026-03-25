@@ -66,3 +66,4 @@ module.exports = {
   s3Client,
   bucketName,
 };
+

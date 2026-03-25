@@ -36,7 +36,6 @@ const protect = async (req, res, next) => {
 
     req.user = admin;
     req.token = token;
-
     if (req.user.is_suspended) {
       return res.status(403).json({
         success: false,
