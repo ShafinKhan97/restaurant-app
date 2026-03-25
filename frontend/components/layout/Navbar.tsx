@@ -1,20 +1,35 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLElement>(null);
+
+  // Close menu when clicking anywhere outside the header
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
   const navLinks = [
-    { label: 'Features',     href: '#features'     },
-    { label: 'How It Works', href: '#how-it-works' },
-    { label: 'Testimonials', href: '#testimonials'  },
-    { label: 'FAQ',           href: '#faq'           },
+    { label: 'Features',     href: '/#features'     },
+    { label: 'How It Works', href: '/#how-it-works' },
+    { label: 'Testimonials', href: '/#testimonials'  },
+    { label: 'FAQ',           href: '/#faq'           },
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-[#0f1117]/85 backdrop-blur-md border-b border-[#2e3347]">
+    <header ref={menuRef} className="sticky top-0 z-50 bg-[#0f1117]/85 backdrop-blur-md border-b border-[#2e3347]">
       <nav className="max-w-screen-xl mx-auto px-6 h-16 flex items-center justify-between">
 
         {/* Logo */}
@@ -60,7 +75,7 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Hamburger */}
+        {/* Hamburger — animates into X when open */}
         <button
           className="md:hidden flex flex-col gap-[5px] p-2 bg-transparent border-none cursor-pointer"
           onClick={() => setMenuOpen(!menuOpen)}

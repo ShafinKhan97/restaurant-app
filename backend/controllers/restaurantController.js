@@ -19,6 +19,35 @@ const normalizeOptionalFields = (body) => {
 };
 
 /**
+ * Helper: parse categories from request body
+ * Handles array, JSON string array, or single string.
+ */
+const parseCategories = (categoriesInput) => {
+  if (categoriesInput === undefined || categoriesInput === null) return undefined;
+  
+  let parsed = [];
+  if (Array.isArray(categoriesInput)) {
+    parsed = categoriesInput;
+  } else if (typeof categoriesInput === "string") {
+    try {
+      const parsedJson = JSON.parse(categoriesInput);
+      if (Array.isArray(parsedJson)) {
+        parsed = parsedJson;
+      } else {
+        parsed = [categoriesInput];
+      }
+    } catch (e) {
+      parsed = [categoriesInput];
+    }
+  }
+
+  // Filter out non-strings or empty strings, then trim
+  return parsed
+    .filter((c) => typeof c === "string" && c.trim() !== "")
+    .map((c) => c.trim());
+};
+
+/**
  * Extract S3 URLs from uploaded files and attach them to req.body
  */
 const attachUploadedImageUrls = (req) => {
@@ -64,7 +93,7 @@ const handleMongooseError = (error, res) => {
 const createRestaurant = async (req, res) => {
   try {
     attachUploadedImageUrls(req);
-    const { name } = req.body;
+    const { name, categories } = req.body;
 
     if (typeof name !== "string") {
       return res.status(400).json({
@@ -98,10 +127,12 @@ const createRestaurant = async (req, res) => {
 
     // Normalize optional fields
     const optionalFields = normalizeOptionalFields(req.body);
+    const parsedCategories = parseCategories(categories);
 
     const restaurant = await Restaurant.create({
       admin_id: req.user._id, // Always from authenticated user, never from body
       name: trimmedName,
+      categories: parsedCategories !== undefined ? parsedCategories : [],
       ...optionalFields,
     });
 
@@ -242,6 +273,11 @@ const updateRestaurant = async (req, res) => {
         });
       }
       restaurant.name = trimmedName;
+    }
+
+    // Update categories if provided
+    if (req.body.categories !== undefined) {
+      restaurant.categories = parseCategories(req.body.categories) || [];
     }
 
     // Normalize and apply optional fields

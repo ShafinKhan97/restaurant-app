@@ -1,79 +1,97 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { FaUser, FaEnvelope, FaLock, FaSpinner, FaSave } from 'react-icons/fa';
+import { FaUser, FaEnvelope, FaLock } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import FadeIn from '@/components/ui/FadeIn';
+import FormInput from '@/components/ui/FormInput';
+import SubmitButton from '@/components/ui/SubmitButton';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { emailField, strongPasswordField } from '@/lib/validationSchemas';
+import { getApiError } from '@/lib/apiError';
 import apiClient from '@/lib/axios';
+
+const profileSchema = z.object({
+  name: z.string().min(1, 'Full name is required'),
+  email: emailField,
+});
+
+type ProfileValues = z.infer<typeof profileSchema>;
+
+const passwordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: strongPasswordField,
+  confirmPassword: z.string().min(1, 'Please confirm your new password')
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: 'New passwords do not match',
+  path: ['confirmPassword'],
+});
+
+type PasswordValues = z.infer<typeof passwordSchema>;
 
 export default function AdminProfilePage() {
   const { user, updateUser } = useAuth();
   
-  // States for profile form
-  const [profileData, setProfileData] = useState({
-    name: user?.name || 'Admin User',
-    email: user?.email || 'admin@example.com',
+  const profileForm = useForm<ProfileValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      name: user?.name || 'Admin User',
+      email: user?.email || 'admin@example.com',
+    }
   });
-  
-  // States for password form
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
+
+  const passwordForm = useForm<PasswordValues>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    }
   });
+
+  useEffect(() => {
+    if (user) {
+      profileForm.reset({
+        name: user.name || 'Admin User',
+        email: user.email || 'admin@example.com',
+      });
+    }
+  }, [user, profileForm]);
 
   const [isProfileSaving, setIsProfileSaving] = useState(false);
   const [isPasswordSaving, setIsPasswordSaving] = useState(false);
 
-  const handleProfileSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Derive visual values for the display card
+  const watchedName = profileForm.watch("name", user?.name || 'Admin User');
+  const watchedEmail = profileForm.watch("email", user?.email || 'admin@example.com');
+
+  const onProfileSubmit = async (data: ProfileValues) => {
     setIsProfileSaving(true);
-    
     try {
-      const { data } = await apiClient.put('/auth/profile', {
-        name: profileData.name,
-        email: profileData.email
-      });
-      
-      updateUser({ 
-        name: data.admin.name, 
-        email: data.admin.email 
-      });
-      
+      await apiClient.put('/auth/update-profile', { name: data.name, email: data.email });
+      updateUser({ name: data.name, email: data.email });
       toast.success('Profile information updated successfully');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to update profile');
+      toast.error(getApiError(error, 'Failed to update profile'));
     } finally {
       setIsProfileSaving(false);
     }
   };
 
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast.error('New passwords do not match');
-      return;
-    }
-
-    if (passwordData.newPassword.length < 8) {
-      toast.error('Password must be at least 8 characters long');
-      return;
-    }
-
+  const onPasswordSubmit = async (data: PasswordValues) => {
     setIsPasswordSaving(true);
-    
     try {
-      await apiClient.put('/auth/password', {
-        currentPassword: passwordData.currentPassword,
-        newPassword: passwordData.newPassword
+      await apiClient.put('/auth/change-password', {
+        currentPassword: data.currentPassword,
+        newPassword: data.newPassword,
       });
-
       toast.success('Password changed successfully');
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      passwordForm.reset();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to change password');
+      toast.error(getApiError(error, 'Failed to change password. Please check your current password.'));
     } finally {
       setIsPasswordSaving(false);
     }
@@ -98,54 +116,42 @@ export default function AdminProfilePage() {
               Personal Information
             </h2>
             
-            <form onSubmit={handleProfileSubmit} className="space-y-6">
+            <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-6" noValidate>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Full Name
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FaUser className="text-gray-500 w-4 h-4" />
-                    </div>
-                    <input
-                      type="text"
-                      required
-                      value={profileData.name}
-                      onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                      className="block w-full pl-10 pr-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-colors"
-                    />
+                <div className="relative">
+                  <div className="absolute bottom-0 left-0 top-7 pl-3 flex items-center pointer-events-none">
+                    <FaUser className="text-gray-500 w-4 h-4" />
                   </div>
+                  <FormInput
+                    id="name"
+                    label="Full Name"
+                    type="text"
+                    className="pl-10"
+                    error={profileForm.formState.errors.name}
+                    {...profileForm.register('name')}
+                  />
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FaEnvelope className="text-gray-500 w-4 h-4" />
-                    </div>
-                    <input
-                      type="email"
-                      required
-                      value={profileData.email}
-                      onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                      className="block w-full pl-10 pr-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-colors"
-                    />
+                <div className="relative">
+                  <div className="absolute bottom-0 left-0 top-7 pl-3 flex items-center pointer-events-none">
+                    <FaEnvelope className="text-gray-500 w-4 h-4" />
                   </div>
+                  <FormInput
+                    id="email"
+                    label="Email Address"
+                    type="email"
+                    className="pl-10"
+                    error={profileForm.formState.errors.email}
+                    {...profileForm.register('email')}
+                  />
                 </div>
               </div>
 
               <div className="flex justify-end pt-4 border-t border-brand-border">
-                <button
-                  type="submit"
-                  disabled={isProfileSaving}
-                  className="flex items-center justify-center gap-2 px-6 py-2.5 bg-brand-elevated hover:bg-brand-base border border-brand-border rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isProfileSaving ? <FaSpinner className="w-4 h-4 animate-spin" /> : <FaSave className="w-4 h-4" />}
-                  Save Changes
-                </button>
+                <SubmitButton
+                  loading={isProfileSaving}
+                  label="Save Changes"
+                  className="w-auto px-6"
+                />
               </div>
             </form>
           </FadeIn>
@@ -156,57 +162,44 @@ export default function AdminProfilePage() {
               Change Password
             </h2>
             
-            <form onSubmit={handlePasswordSubmit} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Current Password
-                </label>
-                <input
+            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-6" noValidate>
+              <div className="relative">
+                <div className="absolute bottom-0 left-0 top-7 pl-3 flex items-center pointer-events-none">
+                  <FaLock className="text-gray-500 w-4 h-4" />
+                </div>
+                <FormInput
+                  id="currentPassword"
+                  label="Current Password"
                   type="password"
-                  required
-                  value={passwordData.currentPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                  className="block w-full px-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-colors"
+                  className="pl-10"
+                  error={passwordForm.formState.errors.currentPassword}
+                  {...passwordForm.register('currentPassword')}
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    New Password
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={passwordData.newPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    className="block w-full px-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-colors"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Confirm New Password
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={passwordData.confirmPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                    className="block w-full px-3 py-2.5 border border-brand-border rounded-lg bg-brand-input text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-colors"
-                  />
-                </div>
+                <FormInput
+                  id="newPassword"
+                  label="New Password"
+                  type="password"
+                  error={passwordForm.formState.errors.newPassword}
+                  {...passwordForm.register('newPassword')}
+                />
+                <FormInput
+                  id="confirmPassword"
+                  label="Confirm New Password"
+                  type="password"
+                  error={passwordForm.formState.errors.confirmPassword}
+                  {...passwordForm.register('confirmPassword')}
+                />
               </div>
 
               <div className="flex justify-end pt-4 border-t border-brand-border">
-                <button
-                  type="submit"
-                  disabled={isPasswordSaving}
-                  className="flex items-center justify-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary-hover rounded-lg text-sm font-semibold text-white shadow-glow transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isPasswordSaving ? <FaSpinner className="w-4 h-4 animate-spin" /> : <FaSave className="w-4 h-4" />}
-                  Update Password
-                </button>
+                <SubmitButton
+                  loading={isPasswordSaving}
+                  label="Update Password"
+                  className="w-auto px-6"
+                />
               </div>
             </form>
           </FadeIn>
@@ -216,14 +209,14 @@ export default function AdminProfilePage() {
         <div className="lg:col-span-1">
           <FadeIn delay={0.4} direction="up" className="bg-brand-surface border border-brand-border rounded-xl p-6 text-center shadow-sm h-full flex flex-col items-center sticky top-8">
             <div className="w-24 h-24 rounded-full bg-brand-base border-4 border-brand-border flex items-center justify-center text-4xl font-bold text-primary mb-4 shadow-inner">
-              {profileData.name.charAt(0).toUpperCase()}
+              {watchedName.charAt(0).toUpperCase()}
             </div>
             
             <h3 className="text-xl font-bold text-white leading-tight mb-1">
-              {profileData.name}
+              {watchedName}
             </h3>
             <p className="text-sm text-gray-400 mb-6 w-full truncate px-4">
-              {profileData.email}
+              {watchedEmail}
             </p>
             
             <div className="w-full bg-brand-base border border-brand-border rounded-lg p-3 text-sm flex justify-between items-center mb-6">
