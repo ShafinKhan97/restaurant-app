@@ -1,47 +1,41 @@
 const jwt = require("jsonwebtoken");
 const Admin = require("../models/Admin");
-const BlacklistedToken = require("../models/BlacklistedToken");
 
 const protect = async (req, res, next) => {
-  let token;
+  const authHeader = req.headers.authorization;
 
-  // Check for Bearer token in Authorization header
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    token = req.headers.authorization.split(" ")[1];
-  }
-
-  if (!token) {
+  if (!authHeader || !authHeader.startsWith("Bearer")) {
     return res.status(401).json({
       success: false,
       message: "Not authorized, no token provided",
     });
   }
 
+  const token = authHeader.split(" ")[1];
+
   try {
-    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Check if token is blacklisted (logged out)
-    const isBlacklisted = await BlacklistedToken.findOne({ token });
-    if (isBlacklisted) {
-      return res.status(401).json({
-        success: false,
-        message: "Token has been invalidated. Please login again.",
-      });
-    }
+    // Fetch admin and include current_token to verify it's still active
+    const admin = await Admin.findById(decoded.id).select("+current_token");
 
-    // Attach admin to request (without password)
-    req.user = await Admin.findById(decoded.id).select("-password");
-
-    if (!req.user) {
+    if (!admin) {
       return res.status(401).json({
         success: false,
         message: "Not authorized, admin not found",
       });
     }
+
+    // If stored token doesn't match — admin has logged out or logged in elsewhere
+    if (admin.current_token !== token) {
+      return res.status(401).json({
+        success: false,
+        message: "Session expired. Please login again.",
+      });
+    }
+
+    req.user = admin;
+    req.token = token;
 
     if (req.user.is_suspended) {
       return res.status(403).json({
@@ -49,7 +43,6 @@ const protect = async (req, res, next) => {
         message: "Your account has been suspended please contact us at support@example.com",
       });
     }
-
     next();
   } catch (error) {
     return res.status(401).json({
@@ -59,7 +52,6 @@ const protect = async (req, res, next) => {
   }
 };
 
-// Role-based authorization
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {

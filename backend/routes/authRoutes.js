@@ -2,28 +2,31 @@ const express = require("express");
 const router = express.Router();
 const {
   signup,
+  verifyEmail,
+  resendVerification,
   login,
+  logout,
   forgotPassword,
   resetPassword,
   logout,
   toggleAdminSuspension,
+  updateProfile,
+  updatePassword,
 } = require("../controllers/authController");
 const { protect, authorize } = require("../middleware/authMiddleware");
 
-// POST /api/auth/signup
+// Public routes
 router.post("/signup", signup);
-
-// POST /api/auth/login
+router.post("/verify-email", verifyEmail);
+router.post("/resend-verification", resendVerification);
 router.post("/login", login);
-
-// POST /api/auth/forgot-password
 router.post("/forgot-password", forgotPassword);
-
-// POST /api/auth/reset-password
 router.post("/reset-password", resetPassword);
 
-// POST /api/auth/logout
-router.post("/logout", logout);
+// Protected routes
+router.post("/logout", protect, logout);
+router.put("/profile", protect, updateProfile);
+router.put("/password", protect, updatePassword);
 
 // PUT /api/auth/admin/:id/suspend
 router.put("/admin/:id/suspend", protect, authorize("super_admin"), toggleAdminSuspension);

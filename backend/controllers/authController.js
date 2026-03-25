@@ -1,76 +1,264 @@
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const Admin = require("../models/Admin");
-const BlacklistedToken = require("../models/BlacklistedToken");
 const sendEmail = require("../utils/sendEmail");
 
 // Generate JWT token
 const generateToken = (admin) => {
-  return jwt.sign(
-    {
-      id: admin._id,
-      role: admin.role,
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRE }
-  );
+  return jwt.sign({ id: admin._id, role: admin.role }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE,
+  });
 };
 
-// @desc    Register a new admin
-// @route   POST /api/auth/signup
-// @access  Public
+// POST /api/auth/signup
 const signup = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const first_name = (req.body.first_name || "").trim();
+    const last_name = (req.body.last_name || "").trim();
+    const email = (req.body.email || "").trim();
+    const password = (req.body.password || "").trim();
+    const { role } = req.body;
 
-    // Check if admin already exists
-    const adminExists = await Admin.findOne({ email });
-
-    if (adminExists) {
-      return res.status(400).json({
-        success: false,
-        message: "An account with this email already exists",
-      });
+    if (!first_name) {
+      return res
+        .status(400)
+        .json({ success: false, message: "First name is required" });
+    }
+    if (!/^[a-zA-Z]+$/.test(first_name)) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "First name can only contain letters",
+        });
+    }
+    if (!last_name) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Last name is required" });
+    }
+    if (!/^[a-zA-Z]+$/.test(last_name)) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Last name can only contain letters",
+        });
+    }
+    if (!email) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Email is required" });
+    }
+    if (!password) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Password is required" });
     }
 
-    // Create admin
+    const existingAdmin = await Admin.findOne({ email });
+    if (existingAdmin) {
+      if (existingAdmin.is_verified) {
+        return res.status(400).json({
+          success: false,
+          message: "An account with this email already exists",
+        });
+      } else {
+        await Admin.deleteOne({ _id: existingAdmin._id });
+      }
+    }
+
     const admin = await Admin.create({
-      name,
+      first_name,
+      last_name,
       email,
       password,
       role: role || "restaurant_admin",
     });
 
-    // Generate token
-    const token = generateToken(admin);
+    // Generate and send email verification PIN
+    const verificationPin = admin.generateVerificationPin();
+    await admin.save({ validateBeforeSave: false });
 
-    res.status(201).json({
-      success: true,
-      token,
-      admin: {
-        id: admin._id,
-        name: admin.name,
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+        <h2 style="color: #333;">Verify Your Email</h2>
+        <p>Thank you for signing up. Use the PIN below to verify your email address:</p>
+        <div style="background: #f4f4f4; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
+          <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">${verificationPin}</span>
+        </div>
+        <p style="color: #666;">This PIN will expire in <strong>10 minutes</strong>.</p>
+        <p style="color: #999; font-size: 12px;">If you didn't create an account, please ignore this email.</p>
+      </div>
+    `;
+
+    try {
+      await sendEmail({
         email: admin.email,
-        role: admin.role,
-        is_suspended: admin.is_suspended || false,
-      },
-    });
+        subject: "Verify Your Email - Restaurant App",
+        html,
+      });
+
+      res.status(201).json({
+        success: true,
+        message:
+          "Account created. Please check your email for the verification PIN.",
+        admin: {
+          id: admin._id,
+          first_name: admin.first_name,
+          last_name: admin.last_name,
+          email: admin.email,
+          role: admin.role,
+          is_suspended: admin.is_suspended || false,
+        }
+      });
+    } catch (emailError) {
+      // If email fails, delete the created admin so they can try again
+      await Admin.findByIdAndDelete(admin._id);
+      console.error("Email send error:", emailError);
+      res
+        .status(500)
+        .json({
+          success: false,
+          message: "Failed to send verification email. Please try again.",
+        });
+    }
   } catch (error) {
     console.error("Signup error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error during signup",
-    });
+    if (error.name === "ValidationError") {
+      const message = Object.values(error.errors)
+        .map((e) => e.message)
+        .join(", ");
+      return res.status(400).json({ success: false, message });
+    }
+    res
+      .status(500)
+      .json({ success: false, message: "Server error during signup" });
   }
 };
 
-// @desc    Login admin
-// @route   POST /api/auth/login
-// @access  Public
+// POST /api/auth/verify-email
+const verifyEmail = async (req, res) => {
+  try {
+    const { email, pin } = req.body;
+
+    if (!email || !pin) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide email and PIN",
+      });
+    }
+
+    const hashedPin = crypto.createHash("sha256").update(pin).digest("hex");
+
+    const admin = await Admin.findOne({
+      email,
+      verification_pin: hashedPin,
+      verification_pin_expires_at: { $gt: Date.now() },
+    });
+
+    if (!admin) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired verification PIN",
+      });
+    }
+
+    // Mark as verified and clear the pin
+    admin.is_verified = true;
+    admin.verification_pin = null;
+    admin.verification_pin_expires_at = null;
+
+    const token = generateToken(admin);
+    admin.current_token = token;
+    await admin.save({ validateBeforeSave: false });
+
+    res.status(200).json({
+      success: true,
+      message: "Email verified successfully",
+      token,
+      admin: {
+        id: admin._id,
+        first_name: admin.first_name,
+        last_name: admin.last_name,
+        email: admin.email,
+        role: admin.role,
+        is_verified: admin.is_verified,
+      },
+    });
+  } catch (error) {
+    console.error("Verify email error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// POST /api/auth/resend-verification
+const resendVerification = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Please provide an email" });
+    }
+
+    const admin = await Admin.findOne({ email });
+
+    if (!admin) {
+      return res
+        .status(404)
+        .json({ success: false, message: "No account found with this email" });
+    }
+
+    if (admin.is_verified) {
+      return res
+        .status(400)
+        .json({ success: false, message: "This account is already verified" });
+    }
+
+    const verificationPin = admin.generateVerificationPin();
+    await admin.save({ validateBeforeSave: false });
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+        <h2 style="color: #333;">Verify Your Email</h2>
+        <p>Here is your new verification PIN:</p>
+        <div style="background: #f4f4f4; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
+          <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">${verificationPin}</span>
+        </div>
+        <p style="color: #666;">This PIN will expire in <strong>10 minutes</strong>.</p>
+      </div>
+    `;
+
+    try {
+      await sendEmail({
+        email: admin.email,
+        subject: "Email Verification PIN - Restaurant App",
+        html,
+      });
+
+      res
+        .status(200)
+        .json({
+          success: true,
+          message: "Verification PIN resent to your email",
+        });
+    } catch (emailError) {
+      console.error("Email send error:", emailError);
+      res.status(500).json({ success: false, message: "Failed to send email" });
+    }
+  } catch (error) {
+    console.error("Resend verification error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// POST /api/auth/login
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validate input
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -78,81 +266,94 @@ const login = async (req, res) => {
       });
     }
 
-    // Find admin and include password field
     const admin = await Admin.findOne({ email }).select("+password");
-
-    if (!admin) {
+    if (!admin || !(await admin.matchPassword(password))) {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password",
       });
     }
 
-    // Check password
-    const isMatch = await admin.matchPassword(password);
-
-    if (!isMatch) {
-      return res.status(401).json({
+    // Block login if email not verified
+    if (!admin.is_verified) {
+      return res.status(403).json({
         success: false,
-        message: "Invalid email or password",
+        message: "Please verify your email before logging in",
       });
     }
 
-    // Generate token
     const token = generateToken(admin);
+
+    // Replace any previous token — old sessions are instantly invalidated
+    admin.current_token = token;
+    await admin.save({ validateBeforeSave: false });
 
     res.status(200).json({
       success: true,
       token,
       admin: {
         id: admin._id,
-        name: admin.name,
+        first_name: admin.first_name,
+        last_name: admin.last_name,
         email: admin.email,
         role: admin.role,
         is_suspended: admin.is_suspended || false,
+        is_verified: admin.is_verified,
       },
     });
   } catch (error) {
     console.error("Login error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error during login",
-    });
+    res
+      .status(500)
+      .json({ success: false, message: "Server error during login" });
   }
 };
 
-// @desc    Forgot password - send reset PIN via email
-// @route   POST /api/auth/forgot-password
-// @access  Public
+// POST /api/auth/logout
+const logout = async (req, res) => {
+  try {
+    await Admin.findByIdAndUpdate(req.user.id, { current_token: null });
+
+    res.status(200).json({ success: true, message: "Logged out successfully" });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Server error during logout" });
+  }
+};
+
+// POST /api/auth/forgot-password
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: "Please provide an email",
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "Please provide an email" });
     }
 
     const admin = await Admin.findOne({ email });
-
     if (!admin) {
-      return res.status(404).json({
-        success: false,
-        message: "No account found with this email",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "No account found with this email" });
     }
 
-    // Generate 6-digit reset PIN
+    if (!admin.is_verified) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Please verify your email first" });
+    }
+
     const resetPin = admin.generateResetPin();
     await admin.save({ validateBeforeSave: false });
 
-    // Send email with PIN
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
         <h2 style="color: #333;">Password Reset</h2>
-        <p>You requested a password reset. Use the following PIN to reset your password:</p>
+        <p>Use the following PIN to reset your password:</p>
         <div style="background: #f4f4f4; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
           <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">${resetPin}</span>
         </div>
@@ -168,34 +369,26 @@ const forgotPassword = async (req, res) => {
         html,
       });
 
-      res.status(200).json({
-        success: true,
-        message: "Reset PIN sent to your email",
-      });
+      res
+        .status(200)
+        .json({ success: true, message: "Reset PIN sent to your email" });
     } catch (emailError) {
-      // If email fails, clear the reset PIN
       admin.reset_pin = null;
       admin.reset_pin_expires_at = null;
       await admin.save({ validateBeforeSave: false });
 
       console.error("Email send error:", emailError);
-      return res.status(500).json({
-        success: false,
-        message: "Email could not be sent. Please try again later.",
-      });
+      res
+        .status(500)
+        .json({ success: false, message: "Email could not be sent" });
     }
   } catch (error) {
     console.error("Forgot password error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
-// @desc    Reset password using PIN
-// @route   POST /api/auth/reset-password
-// @access  Public
+// POST /api/auth/reset-password
 const resetPassword = async (req, res) => {
   try {
     const { email, pin, password } = req.body;
@@ -207,94 +400,183 @@ const resetPassword = async (req, res) => {
       });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({
-        success: false,
-        message: "Password must be at least 8 characters",
-      });
-    }
-
-    // Hash the incoming PIN to compare with stored hash
-    const crypto = require("crypto");
     const hashedPin = crypto.createHash("sha256").update(pin).digest("hex");
 
-    // Find admin with valid reset PIN
+    // `password` has `select: false` in the schema, so we must explicitly load it
+    // to compare hashes during the reset flow.
     const admin = await Admin.findOne({
       email,
       reset_pin: hashedPin,
       reset_pin_expires_at: { $gt: Date.now() },
-    });
+    }).select("+password");
 
     if (!admin) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid or expired PIN",
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid or expired PIN" });
     }
 
-    // Update password and clear reset PIN
+    const isSamePassword = await admin.matchPassword(password);
+    if (isSamePassword) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "New password must be different from your current password",
+        });
+    }
+
     admin.password = password;
     admin.reset_pin = null;
     admin.reset_pin_expires_at = null;
     await admin.save();
 
-    // Generate new token after password reset
     const token = generateToken(admin);
+    admin.current_token = token;
+    await admin.save({ validateBeforeSave: false });
+
+    res
+      .status(200)
+      .json({ success: true, message: "Password reset successful", token });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// PUT /api/auth/profile
+const updateProfile = async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.user.id);
+    if (!admin) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Admin not found" });
+    }
+
+    if (req.body.first_name !== undefined) {
+      const newFirstName = req.body.first_name.trim();
+      if (!newFirstName) {
+        return res
+          .status(400)
+          .json({ success: false, message: "First name cannot be blank" });
+      }
+      if (!/^[a-zA-Z]+$/.test(newFirstName)) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "First name can only contain letters",
+          });
+      }
+      if (newFirstName === admin.first_name) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "New first name must be different from your current first name",
+          });
+      }
+      admin.first_name = newFirstName;
+    }
+
+    if (req.body.last_name !== undefined) {
+      const newLastName = req.body.last_name.trim();
+      if (!newLastName) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Last name cannot be blank" });
+      }
+      if (!/^[a-zA-Z]+$/.test(newLastName)) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Last name can only contain letters",
+          });
+      }
+      if (newLastName === admin.last_name) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "New last name must be different from your current last name",
+          });
+      }
+      admin.last_name = newLastName;
+    }
+    admin.email = req.body.email || admin.email;
+
+    const updatedAdmin = await admin.save();
 
     res.status(200).json({
       success: true,
-      message: "Password reset successful",
-      token,
+      admin: {
+        id: updatedAdmin._id,
+        first_name: updatedAdmin.first_name,
+        last_name: updatedAdmin.last_name,
+        email: updatedAdmin.email,
+        role: updatedAdmin.role,
+        is_verified: updatedAdmin.is_verified,
+      },
     });
   } catch (error) {
-    console.error("Reset password error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
+    if (error.code === 11000) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Email already exists" });
+    }
+    console.error("Update profile error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
-// @desc    Logout admin (blacklist token)
-// @route   POST /api/auth/logout
-// @access  Private
-const logout = async (req, res) => {
+
+// PUT /api/auth/password
+const updatePassword = async (req, res) => {
   try {
-    let token;
+    const { currentPassword, newPassword } = req.body;
 
-    if (
-      req.headers.authorization &&
-      req.headers.authorization.startsWith("Bearer")
-    ) {
-      token = req.headers.authorization.split(" ")[1];
-    }
-
-    if (!token) {
+    if (!currentPassword || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: "No token provided",
+        message: "Please provide current password and new password",
       });
     }
 
-    // Decode token to get expiry
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const expiresAt = new Date(decoded.exp * 1000);
+    const admin = await Admin.findById(req.user.id).select("+password");
+    if (!admin) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Admin not found" });
+    }
 
-    // Add token to blacklist
-    await BlacklistedToken.create({
-      token,
-      expires_at: expiresAt,
-    });
+    const isMatch = await admin.matchPassword(currentPassword);
+    if (!isMatch) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Incorrect current password" });
+    }
 
-    res.status(200).json({
-      success: true,
-      message: "Logged out successfully",
-    });
+    if (currentPassword === newPassword) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "New password must be different from your current password",
+        });
+    }
+
+    admin.password = newPassword;
+    await admin.save();
+
+    res
+      .status(200)
+      .json({ success: true, message: "Password updated successfully" });
   } catch (error) {
-    console.error("Logout error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error during logout",
-    });
+    console.error("Update password error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -337,4 +619,15 @@ const toggleAdminSuspension = async (req, res) => {
   }
 };
 
-module.exports = { signup, login, forgotPassword, resetPassword, logout, toggleAdminSuspension };
+module.exports = {
+  signup,
+  verifyEmail,
+  resendVerification,
+  login,
+  logout,
+  forgotPassword,
+  resetPassword,
+  updateProfile,
+  updatePassword,
+  toggleAdminSuspension,
+};

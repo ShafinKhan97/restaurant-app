@@ -1,7 +1,6 @@
 const { S3Client } = require("@aws-sdk/client-s3");
 const { Upload } = require("@aws-sdk/lib-storage");
 const path = require("path");
-
 const fs = require("fs");
 
 // Configure S3 client
@@ -12,6 +11,8 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
   },
 });
+
+const bucketName = process.env.AWS_S3_BUCKET_NAME || process.env.AWS_S3_BUCKET;
 
 /**
  * Upload a file to S3 or fallback to local storage
@@ -49,7 +50,7 @@ const uploadToS3 = async (file, folder = "menu-items") => {
   const upload = new Upload({
     client: s3Client,
     params: {
-      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Bucket: bucketName,
       Key: fullPath,
       Body: file.buffer,
       ContentType: file.mimetype,
@@ -57,9 +58,11 @@ const uploadToS3 = async (file, folder = "menu-items") => {
   });
 
   const result = await upload.done();
-  return result.Location || `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fullPath}`;
+  return result.Location || `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${fullPath}`;
 };
 
 module.exports = {
   uploadToS3,
+  s3Client,
+  bucketName,
 };

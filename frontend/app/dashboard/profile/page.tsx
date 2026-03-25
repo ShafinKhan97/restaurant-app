@@ -71,8 +71,13 @@ export default function AdminProfilePage() {
   const onProfileSubmit = async (data: ProfileValues) => {
     setIsProfileSaving(true);
     try {
-      await apiClient.put('/auth/update-profile', { name: data.name, email: data.email });
-      updateUser({ name: data.name, email: data.email });
+      const parts = data.name.trim().split(' ');
+      const first_name = parts[0] || '';
+      const last_name = parts.slice(1).join(' ') || first_name;
+      
+      const response = await apiClient.put('/auth/profile', { first_name, last_name, email: data.email });
+      const admin = response.data.admin;
+      updateUser({ name: `${admin.first_name} ${admin.last_name}`, email: admin.email });
       toast.success('Profile information updated successfully');
     } catch (error: any) {
       toast.error(getApiError(error, 'Failed to update profile'));
@@ -84,7 +89,7 @@ export default function AdminProfilePage() {
   const onPasswordSubmit = async (data: PasswordValues) => {
     setIsPasswordSaving(true);
     try {
-      await apiClient.put('/auth/change-password', {
+      await apiClient.put('/auth/password', {
         currentPassword: data.currentPassword,
         newPassword: data.newPassword,
       });
