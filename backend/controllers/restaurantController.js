@@ -19,6 +19,49 @@ const normalizeOptionalFields = (body) => {
 };
 
 /**
+ * Helper: parse categories from request body
+ * Handles array, JSON string array, or single string.
+ */
+const parseCategories = (categoriesInput) => {
+  if (categoriesInput === undefined || categoriesInput === null) return undefined;
+  
+  let parsed = [];
+  if (Array.isArray(categoriesInput)) {
+    parsed = categoriesInput;
+  } else if (typeof categoriesInput === "string") {
+    try {
+      const parsedJson = JSON.parse(categoriesInput);
+      if (Array.isArray(parsedJson)) {
+        parsed = parsedJson;
+      } else {
+        parsed = [categoriesInput];
+      }
+    } catch (e) {
+      parsed = [categoriesInput];
+    }
+  }
+
+  // Filter out non-strings or empty strings, then trim
+  return parsed
+    .filter((c) => typeof c === "string" && c.trim() !== "")
+    .map((c) => c.trim());
+};
+
+/**
+ * Extract S3 URLs from uploaded files and attach them to req.body
+ */
+const attachUploadedImageUrls = (req) => {
+  if (req.files) {
+    if (req.files.logo && req.files.logo.length > 0) {
+      req.body.logo_url = req.files.logo[0].location || req.files.logo[0].key;
+    }
+    if (req.files.banner && req.files.banner.length > 0) {
+      req.body.banner_image = req.files.banner[0].location || req.files.banner[0].key;
+    }
+  }
+};
+
+/**
  * Format Mongoose validation errors into a user-friendly response.
  */
 const handleMongooseError = (error, res) => {
@@ -49,7 +92,8 @@ const handleMongooseError = (error, res) => {
 // @access  Private (restaurant_admin, super_admin)
 const createRestaurant = async (req, res) => {
   try {
-    const { name } = req.body;
+    attachUploadedImageUrls(req);
+    const { name, categories } = req.body;
 
     if (typeof name !== "string") {
       return res.status(400).json({
@@ -83,10 +127,12 @@ const createRestaurant = async (req, res) => {
 
     // Normalize optional fields
     const optionalFields = normalizeOptionalFields(req.body);
+    const parsedCategories = parseCategories(categories);
 
     const restaurant = await Restaurant.create({
       admin_id: req.user._id, // Always from authenticated user, never from body
       name: trimmedName,
+      categories: parsedCategories !== undefined ? parsedCategories : [],
       ...optionalFields,
     });
 
@@ -181,6 +227,7 @@ const getRestaurant = async (req, res) => {
 // @access  Private
 const updateRestaurant = async (req, res) => {
   try {
+    attachUploadedImageUrls(req);
     if (!isValidObjectId(req.params.id)) {
       return res.status(400).json({
         success: false,
@@ -226,6 +273,11 @@ const updateRestaurant = async (req, res) => {
         });
       }
       restaurant.name = trimmedName;
+    }
+
+    // Update categories if provided
+    if (req.body.categories !== undefined) {
+      restaurant.categories = parseCategories(req.body.categories) || [];
     }
 
     // Normalize and apply optional fields
