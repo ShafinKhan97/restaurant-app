@@ -1,7 +1,7 @@
 // frontend/lib/axios.ts
 
 import axios, { InternalAxiosRequestConfig } from "axios";
-
+import { toast } from "react-hot-toast";
 
 const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api",
@@ -32,6 +32,14 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // Handle Rate Limiter Errors (429)
+    if (error.response?.status === 429) {
+      if (typeof window !== "undefined") {
+        toast.error(error.response.data.message || "Too many requests. Please try again later.");
+      }
+      return Promise.reject(error);
+    }
 
     if (
       (error.response?.status === 401 || (error.response?.status === 403 && error.response?.data?.message?.includes("suspended"))) &&

@@ -7,7 +7,7 @@ import FadeIn from '@/components/ui/FadeIn';
 import { useAuth } from '@/context/AuthContext';
 import apiClient from '@/lib/axios';
 import { getApiError } from '@/lib/apiError';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 
@@ -16,13 +16,26 @@ const restaurantSetupSchema = z.object({
 });
 type RestaurantSetupValues = z.infer<typeof restaurantSetupSchema>;
 
+const variantSchema = z.object({
+  name: z.string().min(1, 'Required'),
+  price: z.coerce.number().min(0.01, 'Min $0.01'),
+});
+
 const menuItemSchema = z.object({
   name: z.string().min(1, 'Item name is required'),
   category_name: z.string().min(1, 'Category is required'),
   price: z.coerce.number({ message: 'Price must be a number' }).min(0, 'Price must be 0 or higher'),
   discount_type: z.enum(['none', 'percentage', 'fixed']),
   discount_value: z.coerce.number().min(0).optional(),
-  description: z.string().min(1, 'Description is required')
+  description: z.string().min(1, 'Description is required'),
+  variant: z.array(variantSchema).optional().default([]),
+}).superRefine((data, ctx) => {
+  if (data.discount_type === 'percentage' && (data.discount_value || 0) > 100) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Max 100%', path: ['discount_value'] });
+  }
+  if (data.discount_type !== 'none' && (data.discount_value || 0) <= 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Must be > 0', path: ['discount_value'] });
+  }
 });
 type MenuItemValues = z.infer<typeof menuItemSchema>;
 
@@ -32,7 +45,8 @@ export default function MenuItemsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('All');
+  const [activeTab, setActiveTab] = useState('All');
+  const [availableCategories, setAvailableCategories] = useState<{_id: string, name: string}[]>([]);
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,8 +74,14 @@ export default function MenuItemsPage() {
       price: 0,
       category_name: '',
       discount_type: 'none',
-      discount_value: 0
+      discount_value: 0,
+      variant: []
     }
+  });
+
+  const { fields: variantFields, append: appendVariant, remove: removeVariant } = useFieldArray({
+    control: itemForm.control,
+    name: "variant"
   });
 
   // Derived state to make UI react to discount_type changes
@@ -84,8 +104,21 @@ export default function MenuItemsPage() {
     }
   };
 
+  const fetchCategories = async () => {
+    if (!user || !user.restaurantId) return;
+    try {
+      const { data } = await apiClient.get(`/restaurants/${user.restaurantId}/categories`);
+      if (data.categories) {
+        setAvailableCategories(data.categories);
+      }
+    } catch (error) {
+      // Sielntly fail if backend fails or doesn't exist yet
+    }
+  };
+
   useEffect(() => {
     fetchItems();
+    fetchCategories();
   }, [user]);
 
   const categories = ['All', ...Array.from(new Set(items.map(item => item.category_name).filter(Boolean)))];
@@ -95,7 +128,7 @@ export default function MenuItemsPage() {
     const itemCat = item.category_name || '';
     const matchesSearch = itemName.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           itemCat.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = activeCategory === 'All' || itemCat === activeCategory;
+    const matchesCategory = activeTab === 'All' || itemCat === activeTab;
     
     return matchesSearch && matchesCategory;
   });
@@ -115,7 +148,7 @@ export default function MenuItemsPage() {
       name: '',
       description: '',
       price: 0,
-      category_name: activeCategory === 'All' ? '' : activeCategory,
+      category_name: activeTab === 'All' ? '' : activeTab,
       discount_type: 'none',
       discount_value: 0
     });
@@ -135,7 +168,8 @@ export default function MenuItemsPage() {
       price: Number(item.price) || 0,
       category_name: item.category_name,
       discount_type: item.discount_type || 'none',
-      discount_value: Number(item.discount_value) || 0
+      discount_value: Number(item.discount_value) || 0,
+      variant: item.variant || []
     });
     setItemId(item._id);
     setImageAssetId(imageAsset?._id || '');
@@ -203,6 +237,7 @@ export default function MenuItemsPage() {
       category_name: data.category_name,
       discount_type: data.discount_type,
       discount_value: data.discount_type !== 'none' ? data.discount_value : 0,
+      variant: data.variant,
       availability: 'available'
     };
 
@@ -266,6 +301,15 @@ export default function MenuItemsPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        toast.error('Only .jpg, .png, and .webp formats are supported');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size must be less than 5 MB');
+        return;
+      }
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       const objectUrl = URL.createObjectURL(file);
       previewUrlRef.current = objectUrl;
@@ -358,9 +402,9 @@ export default function MenuItemsPage() {
           {categories.map((cat) => (
             <button
               key={cat}
-              onClick={() => setActiveCategory(cat as string)}
+              onClick={() => setActiveTab(cat as string)}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-                activeCategory === cat 
+                activeTab === cat 
                   ? 'bg-primary text-white shadow-glow border border-primary' 
                   : 'bg-brand-base border border-brand-border text-gray-400 hover:text-white hover:bg-brand-elevated'
               }`}
@@ -491,12 +535,19 @@ export default function MenuItemsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">Category</label>
-                    <input
-                      type="text"
+                    <select
                       {...itemForm.register('category_name')}
-                      className={`w-full px-3 py-2.5 border rounded-lg bg-brand-input text-white focus:outline-none transition-colors ${itemForm.formState.errors.category_name ? 'border-red-500 focus:border-red-500' : 'border-brand-border focus:border-primary'}`}
-                      placeholder="e.g. Burgers"
-                    />
+                      className={`w-full px-3 py-2.5 border rounded-lg bg-brand-input text-white focus:outline-none transition-colors appearance-none ${itemForm.formState.errors.category_name ? 'border-red-500 focus:border-red-500' : 'border-brand-border focus:border-primary'}`}
+                    >
+                      <option value="" disabled>Select a Category...</option>
+                      {availableCategories.length === 0 ? (
+                        <option value="" disabled>No categories found - please create one first</option>
+                      ) : (
+                        availableCategories.map(cat => (
+                          <option key={cat._id} value={cat.name}>{cat.name}</option>
+                        ))
+                      )}
+                    </select>
                     {itemForm.formState.errors.category_name && <p className="mt-1 text-sm text-red-500">{itemForm.formState.errors.category_name.message}</p>}
                   </div>
                   <div>
@@ -553,6 +604,27 @@ export default function MenuItemsPage() {
                     placeholder="Brief description of the dish..."
                   />
                   {itemForm.formState.errors.description && <p className="mt-1 text-sm text-red-500">{itemForm.formState.errors.description.message}</p>}
+                </div>
+
+                <div className="bg-brand-elevated border border-brand-border rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-sm font-bold text-gray-200">Item Variants (Optional)</span>
+                    <button type="button" onClick={() => appendVariant({ name: '', price: 0.01 })} className="text-xs bg-brand-base border border-brand-border px-2 py-1 rounded text-white flex items-center gap-1 hover:bg-brand-surface"><FaPlus/> Add Variant</button>
+                  </div>
+                  {variantFields.length === 0 && <p className="text-xs text-gray-400">No variants added. E.g. Small, Large, Extra Spicy</p>}
+                  {variantFields.map((field, index) => (
+                    <div key={field.id} className="flex items-start gap-2 mb-3">
+                      <div className="flex-1">
+                        <input {...itemForm.register(`variant.${index}.name`)} placeholder="e.g. Large" className="w-full px-2 py-1.5 bg-brand-input border border-brand-border rounded text-sm text-white" />
+                        {itemForm.formState.errors.variant?.[index]?.name && <p className="text-red-500 text-xs mt-1">{itemForm.formState.errors.variant[index]?.name?.message}</p>}
+                      </div>
+                      <div className="w-24">
+                        <input type="number" step="0.01" {...itemForm.register(`variant.${index}.price`)} placeholder="Price" className="w-full px-2 py-1.5 bg-brand-input border border-brand-border rounded text-sm text-white" />
+                        {itemForm.formState.errors.variant?.[index]?.price && <p className="text-red-500 text-xs mt-1">{itemForm.formState.errors.variant[index]?.price?.message}</p>}
+                      </div>
+                      <button type="button" onClick={() => removeVariant(index)} className="p-2 text-red-500 hover:bg-red-500/10 rounded mt-0.5"><FaTrash className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ))}
                 </div>
                 
                 <div>

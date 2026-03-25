@@ -10,19 +10,7 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SIZE = 5 * 1024 * 1024;
 
 const upload = multer({
-  storage: multerS3({
-    s3: s3Client,
-    bucket: bucketName,
-    contentType: multerS3.AUTO_CONTENT_TYPE,
-    key: (req, file, cb) => {
-      const restaurantId = req.params.restaurantId || "unknown";
-      const menuItemId = req.params.menuItemId || "unknown";
-      const ext = path.extname(file.originalname);
-      const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-      const key = `restaurant-images/${restaurantId}/${menuItemId}/${uniqueName}`;
-      cb(null, key);
-    },
-  }),
+  storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
     if (ALLOWED_TYPES.includes(file.mimetype)) {
       cb(null, true);

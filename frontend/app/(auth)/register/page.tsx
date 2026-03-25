@@ -28,6 +28,9 @@ export default function RegisterPage() {
   const router = useRouter();
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [registeredEmail, setRegisteredEmail] = useState("");
+  const [pin, setPin] = useState("");
 
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -37,34 +40,17 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const adminResponse = await apiClient.post('/auth/signup', {
-        name: `${data.firstName} ${data.lastName}`.trim(),
+        first_name: data.firstName.trim(),
+        last_name: data.lastName.trim(),
         email: data.email,
         password: data.password,
         role: 'restaurant_admin',
       });
 
-      const token = adminResponse.data.token;
-
-      const restaurantResponse = await apiClient.post(
-        '/restaurants',
-        { name: data.restaurantName },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const restaurantId = restaurantResponse.data.restaurant._id;
-      const adminData = adminResponse.data.admin;
-
-      login(token, {
-        id: adminData.id,
-        email: adminData.email,
-        name: adminData.name,
-        role: adminData.role,
-        restaurantId,
-        accessToken: token,
-      });
-
-      toast.success(`Welcome, ${adminData.name}! Your account is ready.`);
-      router.push('/dashboard');
+      localStorage.setItem('pending_restaurant_name', data.restaurantName);
+      setRegisteredEmail(data.email);
+      setStep(2);
+      toast.success(adminResponse.data.message || 'Check your email for the PIN');
     } catch (error: any) {
       toast.error(getApiError(error, 'Registration failed. Please try again.'));
     } finally {
@@ -72,35 +58,116 @@ export default function RegisterPage() {
     }
   };
 
+  const onVerify = async () => {
+    if (!pin) {
+      toast.error('Please enter the PIN');
+      return;
+    }
+    setLoading(true);
+    try {
+      const verifyRes = await apiClient.post('/auth/verify-email', {
+        email: registeredEmail,
+        pin
+      });
+      const token = verifyRes.data.token;
+      const adminData = verifyRes.data.admin;
+
+      const restName = localStorage.getItem('pending_restaurant_name');
+      const restaurantResponse = await apiClient.post(
+        '/restaurants',
+        { name: restName || "My Restaurant" },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const restaurantId = restaurantResponse.data.restaurant._id;
+
+      login(token, {
+        id: adminData.id,
+        email: adminData.email,
+        name: `${adminData.first_name || ''} ${adminData.last_name || ''}`.trim(),
+        role: adminData.role,
+        restaurantId,
+        accessToken: token,
+      });
+
+      toast.success(`Welcome! Your account is fully set up.`);
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast.error(getApiError(error, 'Verification failed. Invalid PIN.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    try {
+      await apiClient.post('/auth/resend-verification', { email: registeredEmail });
+      toast.success('Verification PIN resent to your email');
+    } catch (error: any) {
+      toast.error(getApiError(error, 'Failed to resend PIN'));
+    }
+  };
+
   return (
     <div>
       <h2 className="mt-2 text-center text-2xl font-bold tracking-tight text-white mb-6">
-        Create your account
+        {step === 1 ? 'Create your account' : 'Verify your email'}
       </h2>
 
-      <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
-        <div className="grid grid-cols-2 gap-4">
-          <FormInput id="firstName" label="First Name" type="text" error={errors.firstName} {...register('firstName')} />
-          <FormInput id="lastName" label="Last Name" type="text" error={errors.lastName} {...register('lastName')} />
-        </div>
+      {step === 1 ? (
+        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+          <div className="grid grid-cols-2 gap-4">
+            <FormInput id="firstName" label="First Name" type="text" error={errors.firstName} {...register('firstName')} />
+            <FormInput id="lastName" label="Last Name" type="text" error={errors.lastName} {...register('lastName')} />
+          </div>
 
-        <FormInput
-          id="restaurantName"
-          label="Restaurant / Brand Name"
-          type="text"
-          placeholder="e.g. Pizza Palace"
-          error={errors.restaurantName}
-          {...register('restaurantName')}
-        />
+          <FormInput
+            id="restaurantName"
+            label="Restaurant / Brand Name"
+            type="text"
+            placeholder="e.g. Pizza Palace"
+            error={errors.restaurantName}
+            {...register('restaurantName')}
+          />
 
-        <FormInput id="email" label="Email address" type="email" error={errors.email} {...register('email')} />
+          <FormInput id="email" label="Email address" type="email" error={errors.email} {...register('email')} />
 
-        <FormInput id="password" label="Password" type="password" error={errors.password} {...register('password')} />
+          <FormInput id="password" label="Password" type="password" error={errors.password} {...register('password')} />
 
-        <div className="pt-4">
-          <SubmitButton loading={loading} label="Register" />
-        </div>
-      </form>
+          <div className="pt-4">
+            <SubmitButton loading={loading} label="Register" />
+          </div>
+        </form>
+      ) : (
+        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); onVerify(); }}>
+          <p className="text-sm text-gray-300 text-center mb-4">
+            We sent a 6-digit verification PIN to <span className="font-semibold text-white">{registeredEmail}</span>
+          </p>
+          
+          <FormInput 
+            id="pin" 
+            label="Enter Verification PIN" 
+            type="text" 
+            placeholder="e.g. 123456"
+            value={pin} 
+            onChange={(e: any) => setPin(e.target.value)} 
+          />
+          
+          <div className="pt-4">
+            <SubmitButton loading={loading} label="Verify & Complete Setup" />
+          </div>
+          
+          <div className="text-center mt-4">
+            <button 
+              type="button" 
+              onClick={handleResend} 
+              className="text-sm text-primary hover:text-primary-hover font-medium transition-colors"
+            >
+              Resend PIN
+            </button>
+          </div>
+        </form>
+      )}
 
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-400">
