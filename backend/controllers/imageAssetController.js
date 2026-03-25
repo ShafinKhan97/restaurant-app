@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const ImageAsset = require("../models/ImageAsset");
 const MenuItem = require("../models/MenuItem");
 const Restaurant = require("../models/Restaurant");
+const { uploadToS3 } = require("../utils/s3");
 
 // Helper: validate MongoDB ObjectId
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -115,7 +116,12 @@ const createImageAsset = async (req, res) => {
     );
     if (!menuItem) return;
 
-    const { original_url, enhanced_url, ai_processed } = req.body;
+    let { original_url, enhanced_url, ai_processed } = req.body;
+
+    // Handle file upload to S3 if file is present
+    if (req.file) {
+      original_url = await uploadToS3(req.file, `menu-items/${req.params.restaurantId}`);
+    }
 
     // Prefer uploaded file URL (multer-s3) over manual body URL.
     const uploadedUrl = req.file?.location || req.file?.key;
@@ -127,7 +133,7 @@ const createImageAsset = async (req, res) => {
     if (!finalOriginalUrl || !String(finalOriginalUrl).trim()) {
       return res.status(400).json({
         success: false,
-        message: "Please provide an original image URL",
+        message: "Please provide an image file or a URL",
       });
     }
 
@@ -136,6 +142,11 @@ const createImageAsset = async (req, res) => {
       original_url: String(finalOriginalUrl).trim(),
       enhanced_url: enhanced_url || null,
       ai_processed: parsedAiProcessed,
+    });
+
+    // Also update the main MenuItem with this image URL for quick access
+    await MenuItem.findByIdAndUpdate(req.params.menuItemId, {
+      image_url: original_url.trim(),
     });
 
     res.status(201).json({
@@ -314,6 +325,11 @@ const updateImageAsset = async (req, res) => {
     }
 
     await imageAsset.save();
+
+    // Also update the main MenuItem with this image URL for quick access
+    await MenuItem.findByIdAndUpdate(req.params.menuItemId, {
+      image_url: imageAsset.original_url,
+    });
 
     res.status(200).json({
       success: true,

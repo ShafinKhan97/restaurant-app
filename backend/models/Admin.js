@@ -54,6 +54,10 @@ const adminSchema = new mongoose.Schema(
       default: null,
       select: false,
     },
+    is_suspended: {
+      type: Boolean,
+      default: false,
+    },
     reset_pin: {
       type: String,
       default: null,

@@ -5,6 +5,9 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'QR Menu — Digital Menu Platform',
   description: 'Create and manage digital QR menus for your restaurant seamlessly.',
+  icons: {
+    icon: '/favicon.png',
+  },
 };
 
 export default function RootLayout({
