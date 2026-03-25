@@ -9,17 +9,18 @@ const {
   updateImageAsset,
   deleteImageAsset,
 } = require("../controllers/imageAssetController");
+const { uploadLimiter } = require("../middleware/rateLimiter");
 
 // All routes are nested under /api/restaurants/:restaurantId/menu-items/:menuItemId/image-assets
 // All routes are protected — only restaurant_admin and super_admin
 router.use(protect, authorize("restaurant_admin", "super_admin"));
 
-router.route("/").post(handleUpload, createImageAsset).get(getImageAssets);
+router.route("/").post(handleUpload, uploadLimiter, createImageAsset).get(getImageAssets);
 
 router
   .route("/:imageId")
   .get(getImageAsset)
-  .put(handleUpload, updateImageAsset)
+  .put(handleUpload, uploadLimiter, updateImageAsset)
   .delete(deleteImageAsset);
 
 module.exports = router;

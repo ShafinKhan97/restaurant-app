@@ -12,14 +12,15 @@ const {
   updatePassword,
 } = require("../controllers/authController");
 const { protect } = require("../middleware/authMiddleware");
+const { authLimiter } = require("../middleware/rateLimiter");
 
 // Public routes
-router.post("/signup", signup);
-router.post("/verify-email", verifyEmail);
-router.post("/resend-verification", resendVerification);
-router.post("/login", login);
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password", resetPassword);
+router.post("/signup", authLimiter, signup);
+router.post("/verify-email", authLimiter, verifyEmail);
+router.post("/resend-verification", authLimiter, resendVerification);
+router.post("/login", authLimiter, login);
+router.post("/forgot-password", authLimiter, forgotPassword);
+router.post("/reset-password", authLimiter, resetPassword);
 
 // Protected routes
 router.post("/logout", protect, logout);

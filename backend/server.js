@@ -9,6 +9,10 @@ connectDB();
 const app = express();
 
 // Middleware
+app.set("trust proxy", 1);
+const { globalLimiter } = require("./middleware/rateLimiter");
+app.use(globalLimiter);
+
 app.use(express.json());
 app.use(cors());
 
