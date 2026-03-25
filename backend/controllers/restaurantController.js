@@ -19,6 +19,20 @@ const normalizeOptionalFields = (body) => {
 };
 
 /**
+ * Extract S3 URLs from uploaded files and attach them to req.body
+ */
+const attachUploadedImageUrls = (req) => {
+  if (req.files) {
+    if (req.files.logo && req.files.logo.length > 0) {
+      req.body.logo_url = req.files.logo[0].location || req.files.logo[0].key;
+    }
+    if (req.files.banner && req.files.banner.length > 0) {
+      req.body.banner_image = req.files.banner[0].location || req.files.banner[0].key;
+    }
+  }
+};
+
+/**
  * Format Mongoose validation errors into a user-friendly response.
  */
 const handleMongooseError = (error, res) => {
@@ -49,6 +63,7 @@ const handleMongooseError = (error, res) => {
 // @access  Private (restaurant_admin, super_admin)
 const createRestaurant = async (req, res) => {
   try {
+    attachUploadedImageUrls(req);
     const { name } = req.body;
 
     if (typeof name !== "string") {
@@ -181,6 +196,7 @@ const getRestaurant = async (req, res) => {
 // @access  Private
 const updateRestaurant = async (req, res) => {
   try {
+    attachUploadedImageUrls(req);
     if (!isValidObjectId(req.params.id)) {
       return res.status(400).json({
         success: false,
