@@ -97,6 +97,12 @@ const restaurantSchema = new mongoose.Schema(
           "Contact must be a valid phone number (10-15 digits; optional +, spaces, dashes, parentheses)",
       },
     },
+  categories: [{
+  type: String,
+  trim: true,
+  maxlength: 100
+}]
+
   },
   {
     timestamps: {

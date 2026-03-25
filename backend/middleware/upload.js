@@ -64,4 +64,45 @@ const handleUpload = (req, res, next) => {
   });
 };
 
-module.exports = { handleUpload };
+// Multi-field upload middleware for restaurants (logo and banner)
+const uploadRestaurantImagesMulti = upload.fields([
+  { name: "logo", maxCount: 1 },
+  { name: "banner", maxCount: 1 },
+]);
+
+// Wrapper to handle Multer errors gracefully for restaurant images
+const handleRestaurantUpload = (req, res, next) => {
+  uploadRestaurantImagesMulti(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({
+          success: false,
+          message: "A file is too large. Maximum size is 5 MB per file.",
+        });
+      }
+      if (err.code === "LIMIT_UNEXPECTED_FILE") {
+        return res.status(400).json({
+          success: false,
+          message:
+            err.field ||
+            "Unexpected file field or too many files uploaded for a field.",
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: err.message,
+      });
+    }
+
+    if (err) {
+      return res.status(500).json({
+        success: false,
+        message: "Error uploading restaurant images",
+      });
+    }
+
+    next();
+  });
+};
+
+module.exports = { handleUpload, handleRestaurantUpload };
