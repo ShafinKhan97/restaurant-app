@@ -27,7 +27,5 @@ router.post("/logout", protect, logout);
 router.put("/profile", protect, updateProfile);
 router.put("/password", protect, updatePassword);
 
-// PUT /api/auth/admin/:id/suspend
-router.put("/admin/:id/suspend", protect, authorize("super_admin"), toggleAdminSuspension);
 
 module.exports = router;
