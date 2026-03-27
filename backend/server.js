@@ -13,6 +13,8 @@ const app = express();
 app.set("trust proxy", 1);
 const { globalLimiter } = require("./middleware/rateLimiter");
 app.use(globalLimiter);
+
+app.use(express.json());
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -31,7 +33,6 @@ app.use(
   "/api/restaurants/:restaurantId/menu-items/:menuItemId/image-assets",
   require("./routes/imageAssetRoutes")
 );
-app.use("/api/menu", require("./routes/menuRoutes"));
 
 // Health check
 app.get("/", (req, res) => {

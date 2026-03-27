@@ -10,7 +10,24 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SIZE = 5 * 1024 * 1024;
 
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multerS3({
+    s3: s3Client,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      // If restaurant ID is known (update route), use it. Otherwise, fallback to admin ID or 'new'.
+      const parentId = req.params.restaurantId || req.params.id || req.user?._id?.toString() || "new";
+      const menuItemId = req.params.menuItemId || "general";
+      const ext = path.extname(file.originalname);
+      const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      
+      // Prefix filename with field name if it's logo or banner
+      const prefix = file.fieldname === "logo" ? "logo-" : file.fieldname === "banner" ? "banner-" : "";
+      
+      const key = `restaurant-images/${parentId}/${menuItemId}/${prefix}${uniqueName}`;
+      cb(null, key);
+    },
+  }),
   fileFilter: (req, file, cb) => {
     if (ALLOWED_TYPES.includes(file.mimetype)) {
       cb(null, true);

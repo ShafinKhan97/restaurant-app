@@ -118,11 +118,14 @@ const createImageAsset = async (req, res) => {
 
     let { original_url, enhanced_url, ai_processed } = req.body;
 
-    let finalOriginalUrl = original_url;
+    // Handle file upload to S3 if file is present
     if (req.file) {
-      finalOriginalUrl = await uploadToS3(req.file, `menu-items/${req.params.restaurantId}`);
+      original_url = await uploadToS3(req.file, `menu-items/${req.params.restaurantId}`);
     }
 
+    // Prefer uploaded file URL (multer-s3) over manual body URL.
+    const uploadedUrl = req.file?.location || req.file?.key;
+    const finalOriginalUrl = uploadedUrl || original_url;
     const parsedAiProcessed =
       ai_processed === true || ai_processed === "true" ? true : false;
 
@@ -136,14 +139,14 @@ const createImageAsset = async (req, res) => {
 
     const imageAsset = await ImageAsset.create({
       menu_id: req.params.menuItemId,
-      original_url: String(finalOriginalUrl || imageAsset.original_url).trim(),
+      original_url: String(finalOriginalUrl).trim(),
       enhanced_url: enhanced_url || null,
       ai_processed: parsedAiProcessed,
     });
 
     // Also update the main MenuItem with this image URL for quick access
     await MenuItem.findByIdAndUpdate(req.params.menuItemId, {
-      image_url: String(finalOriginalUrl).trim(),
+      image_url: original_url.trim(),
     });
 
     res.status(201).json({
@@ -297,8 +300,8 @@ const updateImageAsset = async (req, res) => {
           : undefined;
 
     // Update original_url if file uploaded, otherwise update from body.
-    if (req.file) {
-      imageAsset.original_url = await uploadToS3(req.file, `menu-items/${req.params.restaurantId}`);
+    if (req.file?.location || req.file?.key) {
+      imageAsset.original_url = req.file.location || req.file.key;
     } else if (req.body.original_url !== undefined) {
       const trimmedUrl = String(req.body.original_url).trim();
       if (!trimmedUrl) {

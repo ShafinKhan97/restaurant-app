@@ -8,11 +8,10 @@ const {
   logout,
   forgotPassword,
   resetPassword,
-  toggleAdminSuspension,
   updateProfile,
   updatePassword,
 } = require("../controllers/authController");
-const { protect, authorize } = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 const { authLimiter } = require("../middleware/rateLimiter");
 
 // Public routes

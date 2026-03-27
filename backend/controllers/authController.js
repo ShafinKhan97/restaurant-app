@@ -20,20 +20,30 @@ const signup = async (req, res) => {
     const password = (req.body.password || "").trim();
     const { role } = req.body;
 
-    if (typeof first_name !== 'string' || first_name.length < 1) {
+    if (!first_name) {
+      return res
+        .status(400)
+        .json({ success: false, message: "First name is required" });
+    }
+    if (!/^[a-zA-Z]+$/.test(first_name)) {
       return res
         .status(400)
         .json({
           success: false,
-          message: "First name is required",
+          message: "First name can only contain letters",
         });
     }
-    if (typeof last_name !== 'string' || last_name.length < 1) {
+    if (!last_name) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Last name is required" });
+    }
+    if (!/^[a-zA-Z]+$/.test(last_name)) {
       return res
         .status(400)
         .json({
           success: false,
-          message: "Last name is required",
+          message: "Last name can only contain letters",
         });
     }
     if (!email) {
@@ -89,14 +99,6 @@ const signup = async (req, res) => {
         success: true,
         message:
           "Account created. Please check your email for the verification PIN.",
-        admin: {
-          id: admin._id,
-          first_name: admin.first_name,
-          last_name: admin.last_name,
-          email: admin.email,
-          role: admin.role,
-          is_suspended: admin.is_suspended || false,
-        }
       });
     } catch (emailError) {
       // If email fails, delete the created admin so they can try again
@@ -278,7 +280,6 @@ const login = async (req, res) => {
         last_name: admin.last_name,
         email: admin.email,
         role: admin.role,
-        is_suspended: admin.is_suspended || false,
         is_verified: admin.is_verified,
       },
     });
@@ -556,45 +557,6 @@ const updatePassword = async (req, res) => {
   }
 };
 
-// @desc    Toggle admin suspension status
-// @route   PUT /api/auth/admin/:id/suspend
-// @access  Private (Super Admin)
-const toggleAdminSuspension = async (req, res) => {
-  try {
-    const admin = await Admin.findById(req.params.id);
-
-    if (!admin) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    // Prevent suspending another super admin
-    if (admin.role === "super_admin") {
-       return res.status(403).json({
-         success: false,
-         message: "Cannot suspend a super admin account",
-       });
-    }
-
-    admin.is_suspended = !admin.is_suspended;
-    await admin.save({ validateBeforeSave: false });
-
-    res.status(200).json({
-      success: true,
-      message: `Account has been ${admin.is_suspended ? 'suspended' : 'unsuspended'}`,
-      is_suspended: admin.is_suspended,
-    });
-  } catch (error) {
-    console.error("Toggle suspension error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error",
-    });
-  }
-};
-
 module.exports = {
   signup,
   verifyEmail,
@@ -605,5 +567,4 @@ module.exports = {
   resetPassword,
   updateProfile,
   updatePassword,
-  toggleAdminSuspension,
 };
