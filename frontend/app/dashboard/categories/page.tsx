@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { FaList, FaTrash, FaPlus, FaSpinner, FaTimes } from 'react-icons/fa';
+import { FaList, FaTrash, FaSpinner } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import FadeIn from '@/components/ui/FadeIn';
 import FormInput from '@/components/ui/FormInput';
@@ -11,15 +11,9 @@ import apiClient from '@/lib/axios';
 import { getApiError } from '@/lib/apiError';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
-interface Category {
-  _id: string;
-  name: string;
-  createdAt?: string;
-}
-
 export default function CategoriesPage() {
-  const { user } = useAuth();
-  const [categories, setCategories] = useState<Category[]>([]);
+  const { user, selectedRestaurantId } = useAuth();
+  const [categories, setCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -30,22 +24,19 @@ export default function CategoriesPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    fetchCategories();
-  }, [user]);
+    fetchRestaurant();
+  }, [user, selectedRestaurantId]);
 
-  const fetchCategories = async () => {
-    if (!user || !user.restaurantId) return;
+  const fetchRestaurant = async () => {
+    if (!selectedRestaurantId) return;
+    setIsLoading(true);
     try {
-      // Intentionally omitting try-catch for silent failure if backend route doesn't exist yet
-      const { data } = await apiClient.get(`/restaurants/${user.restaurantId}/categories`);
-      if (data.categories) {
-        setCategories(data.categories);
+      const { data } = await apiClient.get(`/restaurants/${selectedRestaurantId}`);
+      if (data.restaurant && data.restaurant.categories) {
+        setCategories(data.restaurant.categories);
       }
     } catch (error: any) {
-      if (error.response?.status !== 404) {
-        toast.error('Failed to load categories');
-      }
-      // If 404, the backend route simply isn't ready yet, which is expected.
+      toast.error('Failed to load restaurant categories');
     } finally {
       setIsLoading(false);
     }
@@ -53,45 +44,66 @@ export default function CategoriesPage() {
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCategoryName.trim()) {
+    const cleanName = newCategoryName.trim();
+    if (!cleanName) {
       toast.error('Category name cannot be empty');
       return;
     }
-    if (!user?.restaurantId) return;
+    
+    // Check for duplicates case-insensitively
+    const isDuplicate = categories.some(cat => cat.toLowerCase() === cleanName.toLowerCase());
+    if (isDuplicate) {
+      toast.error('This category already exists');
+      return;
+    }
+
+    if (!selectedRestaurantId) return;
 
     setIsAdding(true);
     try {
-      const { data } = await apiClient.post(`/restaurants/${user.restaurantId}/categories`, {
-        name: newCategoryName.trim()
+      const updatedCategories = [...categories, cleanName];
+      // PUT updated categories array back to the restaurant model
+      const { data } = await apiClient.put(`/restaurants/${selectedRestaurantId}`, {
+        categories: updatedCategories
       });
-      // Optionally the backend returns the created category in data.category
-      if (data.category) {
-        setCategories(prev => [...prev, data.category]);
+      
+      if (data.restaurant && data.restaurant.categories) {
+        setCategories(data.restaurant.categories);
       } else {
-        // Fallback reload if backend didn't return the object
-        await fetchCategories();
+        setCategories(updatedCategories);
       }
+      
       setNewCategoryName('');
-      toast.success('Category created successfully');
+      toast.success('Category saved successfully');
     } catch (error: any) {
-      toast.error(getApiError(error, 'Failed to create category'));
+      toast.error(getApiError(error, 'Failed to update category list'));
     } finally {
       setIsAdding(false);
     }
   };
 
-  const confirmDelete = (id: string) => {
-    setCategoryToDelete(id);
+  const confirmDelete = (cat: string) => {
+    setCategoryToDelete(cat);
     setShowDeleteConfirm(true);
   };
 
   const handleDelete = async () => {
-    if (!categoryToDelete || !user?.restaurantId) return;
+    if (!categoryToDelete || !selectedRestaurantId) return;
     setIsDeleting(true);
     try {
-      await apiClient.delete(`/restaurants/${user.restaurantId}/categories/${categoryToDelete}`);
-      setCategories(prev => prev.filter(c => c._id !== categoryToDelete));
-      toast.success('Category deleted successfully');
+      const updatedCategories = categories.filter(c => c !== categoryToDelete);
+      
+      const { data } = await apiClient.put(`/restaurants/${selectedRestaurantId}`, {
+        categories: updatedCategories
+      });
+      
+      if (data.restaurant && data.restaurant.categories) {
+        setCategories(data.restaurant.categories);
+      } else {
+        setCategories(updatedCategories);
+      }
+      
+      toast.success('Category removed');
     } catch (error: any) {
       toast.error(getApiError(error, 'Failed to delete category'));
     } finally {
@@ -101,10 +113,24 @@ export default function CategoriesPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && selectedRestaurantId) {
     return (
       <div className="flex justify-center items-center py-20">
         <FaSpinner className="animate-spin text-primary w-8 h-8" />
+      </div>
+    );
+  }
+
+  if (!selectedRestaurantId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-6">
+          <FaList className="w-8 h-8 text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-3">No Branch Selected</h2>
+        <p className="text-gray-400 max-w-sm mx-auto mb-8">
+          Please select a restaurant branch from the sidebar to manage its menu categories.
+        </p>
       </div>
     );
   }
@@ -139,7 +165,7 @@ export default function CategoriesPage() {
               />
               <SubmitButton
                 loading={isAdding}
-                label="Create Category"
+                label="Save Category"
                 className="w-full"
               />
             </form>
@@ -154,23 +180,23 @@ export default function CategoriesPage() {
                 <div className="w-16 h-16 bg-brand-base rounded-full flex items-center justify-center mb-4">
                   <FaList className="w-8 h-8 text-gray-500" />
                 </div>
-                <h3 className="text-white font-bold text-lg mb-2">No Categories Found</h3>
+                <h3 className="text-white font-bold text-lg mb-2">No Categories Confirmed</h3>
                 <p className="text-gray-400 text-sm max-w-sm">
-                  You haven't created any menu categories yet. Use the form to add your first category.
+                  Use the form to add your first category. It will immediately appear when adding menu items!
                 </p>
               </div>
             ) : (
               <ul className="divide-y divide-brand-border">
-                {categories.map((category) => (
-                  <li key={category._id} className="p-4 flex items-center justify-between hover:bg-brand-base/50 transition-colors">
+                {categories.map((catString, idx) => (
+                  <li key={idx} className="p-4 flex items-center justify-between hover:bg-brand-base/50 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold">
-                        {category.name.charAt(0).toUpperCase()}
+                        {catString.charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-white font-medium">{category.name}</span>
+                      <span className="text-white font-medium">{catString}</span>
                     </div>
                     <button
-                      onClick={() => confirmDelete(category._id)}
+                      onClick={() => confirmDelete(catString)}
                       className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
                       title="Delete Category"
                     >
@@ -187,7 +213,7 @@ export default function CategoriesPage() {
       <ConfirmDialog
         isOpen={showDeleteConfirm}
         title="Delete Category"
-        message="Are you sure you want to delete this category? This action cannot be undone."
+        message="Are you sure you want to delete this category string? Any existing items using this category will remain, but the category won't show in the dropdown anymore."
         confirmLabel={isDeleting ? 'Deleting...' : 'Yes, Delete'}
         cancelLabel="Cancel"
         variant="danger"

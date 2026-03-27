@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { FaSearch, FaImage, FaStar, FaFire } from 'react-icons/fa';
+import { FaSearch, FaImage, FaStar, FaFire, FaMapMarkerAlt, FaPhone } from 'react-icons/fa';
 import FadeIn from '@/components/ui/FadeIn';
 import apiClient from '@/lib/axios';
 
@@ -11,6 +11,10 @@ export default function PublicMenuPage() {
   const restaurantId = params.restaurantId as string;
   
   const [restaurantName, setRestaurantName] = useState('');
+  const [restaurantLogo, setRestaurantLogo] = useState('');
+  const [restaurantBanner, setRestaurantBanner] = useState('');
+  const [restaurantAddress, setRestaurantAddress] = useState('');
+  const [restaurantContact, setRestaurantContact] = useState('');
   const [items, setItems] = useState<any[]>([]);
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,6 +42,10 @@ export default function PublicMenuPage() {
 
         if (data.success && data.restaurant) {
           setRestaurantName(data.restaurant.name);
+          setRestaurantLogo(data.restaurant.logo_url || '');
+          setRestaurantBanner(data.restaurant.banner_image || '');
+          setRestaurantAddress(data.restaurant.address || '');
+          setRestaurantContact(data.restaurant.contact || '');
           
           // Flatten items from categorized map
           let allItems: any[] = [];
@@ -101,9 +109,17 @@ export default function PublicMenuPage() {
       <nav className="sticky top-0 z-40 bg-brand-surface/90 backdrop-blur-xl border-b border-brand-border px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between shadow-sm transition-all">
         {/* Left: Restaurant Name & Logo */}
         <div className="flex items-center gap-3">
-           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-primary to-orange-500 text-white flex items-center justify-center font-black text-xl shadow-glow">
-             {restaurantName.substring(0,1).toUpperCase()}
-           </div>
+           {restaurantLogo ? (
+             <img 
+               src={restaurantLogo} 
+               alt={`${restaurantName} logo`} 
+               className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl object-cover shadow-glow border border-brand-border"
+             />
+           ) : (
+             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-primary to-orange-500 text-white flex items-center justify-center font-black text-xl shadow-glow">
+               {restaurantName.substring(0,1).toUpperCase()}
+             </div>
+           )}
            <div className="flex flex-col">
              <h1 className="text-base sm:text-lg font-extrabold text-white leading-tight tracking-tight">{restaurantName}</h1>
              <div className="flex items-center gap-1.5 mt-0.5">
@@ -168,7 +184,21 @@ export default function PublicMenuPage() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      {restaurantBanner && !searchQuery && activeCategory === 'All' && (
+        <FadeIn delay={0} direction="down" className="w-full">
+          <div className="w-full h-48 sm:h-64 md:h-80 mx-auto relative overflow-hidden bg-brand-base border-b border-brand-border">
+            <img 
+              src={restaurantBanner} 
+              alt={`${restaurantName} banner`} 
+              className="w-full h-full object-cover"
+            />
+            {/* Dark gradient overlay for a smooth transition to background */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#08080a] via-transparent to-transparent"></div>
+          </div>
+        </FadeIn>
+      )}
+
+      <main className={`flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 ${!restaurantBanner && 'pt-6'}`}>
         
         {/* Special Promo / Featured Banner */}
         {!searchQuery && activeCategory === 'All' && items.some(i => i.discount_type !== 'none' && i.discount_value > 0) && (
@@ -262,6 +292,54 @@ export default function PublicMenuPage() {
         )}
       </main>
 
+      {/* Footer / Contact Section */}
+      {(restaurantAddress || restaurantContact) && (
+        <footer className="bg-brand-surface border-t border-brand-border py-12 px-4 sm:px-6 lg:px-8 mt-auto">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                {restaurantLogo ? (
+                  <img src={restaurantLogo} alt="Logo" className="w-12 h-12 rounded-xl object-cover border border-brand-border shadow-sm" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-primary/20 text-primary flex items-center justify-center font-bold text-xl">
+                    {restaurantName.charAt(0)}
+                  </div>
+                )}
+                <h2 className="text-xl font-bold text-white tracking-tight">{restaurantName}</h2>
+              </div>
+              <p className="text-gray-400 text-sm max-w-sm">
+                Serving the finest flavors with the freshest ingredients. Scan, select, and savor.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <h3 className="text-sm font-bold text-gray-200 uppercase tracking-widest">Get in Touch</h3>
+              <div className="space-y-3">
+                {restaurantAddress && (
+                  <div className="flex items-start gap-3">
+                    <FaMapMarkerAlt className="w-4 h-4 text-primary mt-1 shrink-0" />
+                    <span className="text-sm text-gray-400">{restaurantAddress}</span>
+                  </div>
+                )}
+                {restaurantContact && (
+                  <div className="flex items-center gap-3">
+                    <FaPhone className="w-4 h-4 text-primary shrink-0" />
+                    <a href={`tel:${restaurantContact}`} className="text-sm text-gray-400 hover:text-white transition-colors">{restaurantContact}</a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <div className="max-w-7xl mx-auto mt-12 pt-8 border-t border-brand-border flex flex-col sm:flex-row justify-between items-center gap-4 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+            <p>© {new Date().getFullYear()} {restaurantName} • DIGITAL MENU POWERED BY QRMENU</p>
+            <div className="flex gap-6">
+              <a href="#" className="hover:text-white transition-colors">Privacy</a>
+              <a href="#" className="hover:text-white transition-colors">Terms</a>
+            </div>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }

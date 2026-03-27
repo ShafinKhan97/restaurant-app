@@ -5,12 +5,15 @@ import { FaCheckCircle, FaRegCircle, FaInfoCircle } from 'react-icons/fa';
 import FadeIn from '@/components/ui/FadeIn';
 
 export default function DashboardOverviewPage() {
-  const { user } = useAuth();
+  const { user, restaurants, selectedRestaurantId } = useAuth();
+
+  const selectedRestaurant = restaurants.find(r => r._id === selectedRestaurantId);
 
   // A simple checklist to guide the admin
   const checklist = [
-    { title: 'Update your profile information', completed: true },
-    { title: 'Create Menu Items', completed: true },
+    { title: 'Create your first branch', completed: restaurants.length > 0 },
+    { title: 'Select a branch to manage', completed: !!selectedRestaurantId },
+    { title: 'Add menu categories', completed: (selectedRestaurant?.categories?.length || 0) > 0 },
   ];
 
   const completedCount = checklist.filter((item) => item.completed).length;
@@ -29,17 +32,21 @@ export default function DashboardOverviewPage() {
                 Welcome back, {user?.name || 'Admin'}! 👋
               </h1>
               <p className="text-gray-400 text-base">
-                Your digital menu control center is ready. What's on the menu today?
+                {selectedRestaurant 
+                  ? `Currently managing ${selectedRestaurant.name}.`
+                  : 'Get started by creating or selecting a restaurant branch.'}
               </p>
             </div>
             
             <div className="bg-brand-base border border-brand-border p-3 rounded-xl flex items-center gap-3 shrink-0">
               <div className="w-12 h-12 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xl">
-                {user?.name?.charAt(0) || 'A'}
+                {selectedRestaurant?.name?.charAt(0) || user?.name?.charAt(0) || 'A'}
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-400">Current Role</p>
-                <p className="text-white font-semibold capitalize">{user?.role?.replace('_', ' ').toLowerCase() || 'Administrator'}</p>
+                <p className="text-sm font-medium text-gray-400">Selected Branch</p>
+                <p className="text-white font-semibold truncate max-w-[150px]">
+                  {selectedRestaurant?.name || 'None Selected'}
+                </p>
               </div>
             </div>
           </div>

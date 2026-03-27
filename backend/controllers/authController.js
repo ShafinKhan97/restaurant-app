@@ -20,30 +20,20 @@ const signup = async (req, res) => {
     const password = (req.body.password || "").trim();
     const { role } = req.body;
 
-    if (!first_name) {
-      return res
-        .status(400)
-        .json({ success: false, message: "First name is required" });
-    }
-    if (!/^[a-zA-Z]+$/.test(first_name)) {
+    if (typeof first_name !== 'string' || first_name.length < 1) {
       return res
         .status(400)
         .json({
           success: false,
-          message: "First name can only contain letters",
+          message: "First name is required",
         });
     }
-    if (!last_name) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Last name is required" });
-    }
-    if (!/^[a-zA-Z]+$/.test(last_name)) {
+    if (typeof last_name !== 'string' || last_name.length < 1) {
       return res
         .status(400)
         .json({
           success: false,
-          message: "Last name can only contain letters",
+          message: "Last name is required",
         });
     }
     if (!email) {

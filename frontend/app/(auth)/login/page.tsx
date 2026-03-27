@@ -39,27 +39,11 @@ export default function LoginPage() {
       });
 
       const { token, admin } = response.data;
-      let restaurantId = undefined;
-
-      if (admin.role !== 'super_admin' && !admin.is_suspended) {
-        try {
-          const resResponse = await apiClient.get('/restaurants', {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (resResponse.data.restaurants?.length > 0) {
-            restaurantId = resResponse.data.restaurants[0]._id;
-          }
-        } catch {
-          console.error('Could not fetch associated restaurants');
-        }
-      }
-
       login(token, {
         id: admin.id,
         email: admin.email,
         name: admin.name,
         role: admin.role,
-        restaurantId,
         accessToken: token,
         is_suspended: admin.is_suspended,
       });

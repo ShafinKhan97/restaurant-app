@@ -19,7 +19,6 @@ const registerSchema = z.object({
   lastName: z.string().min(1, 'Last name is required'),
   email: emailField,
   password: strongPasswordField,
-  restaurantName: z.string().min(1, 'Restaurant name is required'),
 });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
@@ -34,6 +33,12 @@ export default function RegisterPage() {
 
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
+    defaultValues: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+    }
   });
 
   const onSubmit = async (data: RegisterFormValues) => {
@@ -47,7 +52,6 @@ export default function RegisterPage() {
         role: 'restaurant_admin',
       });
 
-      localStorage.setItem('pending_restaurant_name', data.restaurantName);
       setRegisteredEmail(data.email);
       setStep(2);
       toast.success(adminResponse.data.message || 'Check your email for the PIN');
@@ -72,25 +76,15 @@ export default function RegisterPage() {
       const token = verifyRes.data.token;
       const adminData = verifyRes.data.admin;
 
-      const restName = localStorage.getItem('pending_restaurant_name');
-      const restaurantResponse = await apiClient.post(
-        '/restaurants',
-        { name: restName || "My Restaurant" },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const restaurantId = restaurantResponse.data.restaurant._id;
-
       login(token, {
         id: adminData.id,
         email: adminData.email,
         name: `${adminData.first_name || ''} ${adminData.last_name || ''}`.trim(),
         role: adminData.role,
-        restaurantId,
         accessToken: token,
       });
 
-      toast.success(`Welcome! Your account is fully set up.`);
+      toast.success(`Welcome! Your account is verified.`);
       router.push('/dashboard');
     } catch (error: any) {
       toast.error(getApiError(error, 'Verification failed. Invalid PIN.'));
@@ -115,36 +109,28 @@ export default function RegisterPage() {
       </h2>
 
       {step === 1 ? (
-        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <form key="register-form" className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
           <div className="grid grid-cols-2 gap-4">
-            <FormInput id="firstName" label="First Name" type="text" error={errors.firstName} {...register('firstName')} />
-            <FormInput id="lastName" label="Last Name" type="text" error={errors.lastName} {...register('lastName')} />
+            <FormInput key="firstName" id="firstName" label="First Name" type="text" error={errors.firstName} {...register('firstName')} />
+            <FormInput key="lastName" id="lastName" label="Last Name" type="text" error={errors.lastName} {...register('lastName')} />
           </div>
 
-          <FormInput
-            id="restaurantName"
-            label="Restaurant / Brand Name"
-            type="text"
-            placeholder="e.g. Pizza Palace"
-            error={errors.restaurantName}
-            {...register('restaurantName')}
-          />
+          <FormInput key="email" id="email" label="Email address" type="email" error={errors.email} {...register('email')} />
 
-          <FormInput id="email" label="Email address" type="email" error={errors.email} {...register('email')} />
-
-          <FormInput id="password" label="Password" type="password" error={errors.password} {...register('password')} />
+          <FormInput key="password" id="password" label="Password" type="password" error={errors.password} {...register('password')} />
 
           <div className="pt-4">
             <SubmitButton loading={loading} label="Register" />
           </div>
         </form>
       ) : (
-        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); onVerify(); }}>
+        <form key="verify-form" className="space-y-4" onSubmit={(e) => { e.preventDefault(); onVerify(); }}>
           <p className="text-sm text-gray-300 text-center mb-4">
             We sent a 6-digit verification PIN to <span className="font-semibold text-white">{registeredEmail}</span>
           </p>
           
           <FormInput 
+            key="pin"
             id="pin" 
             label="Enter Verification PIN" 
             type="text" 

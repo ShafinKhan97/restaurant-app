@@ -31,6 +31,7 @@ app.use(
   "/api/restaurants/:restaurantId/menu-items/:menuItemId/image-assets",
   require("./routes/imageAssetRoutes")
 );
+app.use("/api/menu", require("./routes/menuRoutes"));
 
 // Health check
 app.get("/", (req, res) => {

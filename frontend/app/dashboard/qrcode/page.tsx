@@ -8,17 +8,17 @@ import FadeIn from '@/components/ui/FadeIn';
 import apiClient from '@/lib/axios';
 
 export default function QRCodePage() {
-  const { user } = useAuth();
+  const { user, selectedRestaurantId } = useAuth();
   const [slug, setSlug] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
 
   const fetchSlug = async () => {
-    if (!user?.restaurantId) return;
+    if (!selectedRestaurantId) return;
     setIsLoading(true);
     setError(false);
     try {
-      const { data } = await apiClient.get(`/restaurants/${user.restaurantId}`);
+      const { data } = await apiClient.get(`/restaurants/${selectedRestaurantId}`);
       setSlug(data.restaurant.slug);
     } catch (err) {
       setError(true);
@@ -29,7 +29,7 @@ export default function QRCodePage() {
 
   useEffect(() => {
     fetchSlug();
-  }, [user]);
+  }, [user, selectedRestaurantId]);
 
   const websiteUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
   const menuLink = `${websiteUrl}/menu/${slug}`;
@@ -57,6 +57,28 @@ export default function QRCodePage() {
     };
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
   };
+
+  if (isLoading && selectedRestaurantId) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <FaSpinner className="text-primary w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!selectedRestaurantId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-6">
+          <FaQrcode className="w-8 h-8 text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-3">No Branch Selected</h2>
+        <p className="text-gray-400 max-w-sm mx-auto mb-8">
+          Please select a restaurant branch from the sidebar to generate its QR code.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto pb-8">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { FaPlus, FaPencilAlt, FaTrash, FaImage, FaSearch, FaTimes, FaSpinner, FaUpload, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
+import { FaPlus, FaPencilAlt, FaTrash, FaImage, FaSearch, FaTimes, FaSpinner, FaUpload, FaExclamationTriangle, FaRedo, FaUtensils } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import FadeIn from '@/components/ui/FadeIn';
 import { useAuth } from '@/context/AuthContext';
@@ -40,13 +40,13 @@ const menuItemSchema = z.object({
 type MenuItemValues = z.infer<typeof menuItemSchema>;
 
 export default function MenuItemsPage() {
-  const { user, updateUser } = useAuth();
+  const { user, selectedRestaurantId } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All');
-  const [availableCategories, setAvailableCategories] = useState<{_id: string, name: string}[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -88,13 +88,10 @@ export default function MenuItemsPage() {
   const discountType = itemForm.watch('discount_type');
 
   const fetchItems = async () => {
-    if (!user || !user.restaurantId) {
-      setIsLoading(false);
-      return;
-    }
+    setIsLoading(true);
     setFetchError(false);
     try {
-      const { data } = await apiClient.get(`/restaurants/${user.restaurantId}/menu-items`);
+      const { data } = await apiClient.get(`/restaurants/${selectedRestaurantId}/menu-items`);
       setItems(data.menuItems || []);
     } catch (error: any) {
       setFetchError(true);
@@ -105,21 +102,21 @@ export default function MenuItemsPage() {
   };
 
   const fetchCategories = async () => {
-    if (!user || !user.restaurantId) return;
+    if (!selectedRestaurantId) return;
     try {
-      const { data } = await apiClient.get(`/restaurants/${user.restaurantId}/categories`);
-      if (data.categories) {
-        setAvailableCategories(data.categories);
+      const { data } = await apiClient.get(`/restaurants/${selectedRestaurantId}`);
+      if (data.restaurant && data.restaurant.categories) {
+        setAvailableCategories(data.restaurant.categories);
       }
     } catch (error) {
-      // Sielntly fail if backend fails or doesn't exist yet
+      console.error('Could not load categories:', error);
     }
   };
 
   useEffect(() => {
     fetchItems();
     fetchCategories();
-  }, [user]);
+  }, [user, selectedRestaurantId]);
 
   const categories = ['All', ...Array.from(new Set(items.map(item => item.category_name).filter(Boolean)))];
   
@@ -187,7 +184,7 @@ export default function MenuItemsPage() {
           <button
             onClick={async () => {
               try {
-                await apiClient.delete(`/restaurants/${user?.restaurantId}/menu-items/${item._id}`);
+                await apiClient.delete(`/restaurants/${selectedRestaurantId}/menu-items/${item._id}`);
                 setItems(prev => prev.filter(i => i._id !== item._id));
                 toast.dismiss(t.id);
                 toast.success(`${item.name} deleted`);
@@ -211,22 +208,9 @@ export default function MenuItemsPage() {
     ), { duration: 5000 });
   };
 
-  const onSetupSubmit = async (data: RestaurantSetupValues) => {
-    try {
-      toast.loading('Creating restaurant setup...', { id: 'setup' });
-      const res = await apiClient.post('/restaurants', { name: data.restaurantName });
-      
-      updateUser({ restaurantId: res.data.restaurant._id });
-      
-      toast.success('Restaurant created successfully!', { id: 'setup' });
-    } catch (err) {
-      toast.error('Failed to create restaurant setup', { id: 'setup' });
-    }
-  };
-
   const onItemSubmit = async (data: MenuItemValues) => {
-    if (!user || !user.restaurantId) {
-       toast.error("Cannot save item. Restaurant missing.");
+    if (!selectedRestaurantId) {
+       toast.error("Cannot save item. Branch missing.");
        return;
     }
 
@@ -245,12 +229,12 @@ export default function MenuItemsPage() {
       let savedItem: any;
 
       if (isEditing) {
-        const res = await apiClient.put(`/restaurants/${user.restaurantId}/menu-items/${itemId}`, payload);
+        const res = await apiClient.put(`/restaurants/${selectedRestaurantId}/menu-items/${itemId}`, payload);
         savedItem = res.data.menuItem;
         setItems(prev => prev.map(item => item._id === itemId ? savedItem : item));
         toast.success('Item updated successfully');
       } else {
-        const res = await apiClient.post(`/restaurants/${user.restaurantId}/menu-items`, payload);
+        const res = await apiClient.post(`/restaurants/${selectedRestaurantId}/menu-items`, payload);
         savedItem = res.data.menuItem;
         setItems(prev => [savedItem, ...prev]);
         toast.success('New item added to menu');
@@ -265,13 +249,13 @@ export default function MenuItemsPage() {
           let imageResponse;
           if (isEditing && imageAssetId) {
             imageResponse = await apiClient.put(
-              `/restaurants/${user.restaurantId}/menu-items/${savedItem._id}/image-assets/${imageAssetId}`,
+              `/restaurants/${selectedRestaurantId}/menu-items/${savedItem._id}/image-assets/${imageAssetId}`,
               formDataImage,
               { headers: { 'Content-Type': 'multipart/form-data' } }
             );
           } else {
             imageResponse = await apiClient.post(
-              `/restaurants/${user.restaurantId}/menu-items/${savedItem._id}/image-assets`,
+              `/restaurants/${selectedRestaurantId}/menu-items/${savedItem._id}/image-assets`,
               formDataImage,
               { headers: { 'Content-Type': 'multipart/form-data' } }
             );
@@ -318,31 +302,16 @@ export default function MenuItemsPage() {
     }
   };
 
-  if (!user?.restaurantId && !isLoading) {
+  if (!selectedRestaurantId && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
          <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-6">
-           <FaPlus className="w-8 h-8 text-primary" />
+           <FaUtensils className="w-8 h-8 text-primary" />
          </div>
-         <h2 className="text-2xl font-bold text-white mb-3">Configure Your Restaurant First</h2>
-         <p className="text-gray-400 max-w-md mx-auto mb-8">You need an active restaurant configuration before you can add menu items. It seems your account hasn't been linked to a restaurant yet.</p>
-         
-         <form onSubmit={setupForm.handleSubmit(onSetupSubmit)} className="w-full max-w-sm mx-auto" noValidate>
-            <div className="flex flex-col sm:flex-row gap-3 items-start w-full">
-              <div className="w-full flex-1">
-                <input 
-                  type="text" 
-                  {...setupForm.register('restaurantName')}
-                  placeholder="e.g. My Awesome Cafe"
-                  className={`w-full px-4 py-3 bg-brand-surface border rounded-lg text-white placeholder-gray-500 focus:outline-none transition-colors ${setupForm.formState.errors.restaurantName ? 'border-red-500 focus:border-red-500 text-sm' : 'border-brand-border focus:border-primary'}`}
-                />
-                {setupForm.formState.errors.restaurantName && <p className="mt-1 text-sm text-red-500 text-left">{setupForm.formState.errors.restaurantName.message}</p>}
-              </div>
-              <button type="submit" className="w-full sm:w-auto px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg whitespace-nowrap shadow-glow transition-colors mt-0">
-                Create Now
-              </button>
-            </div>
-         </form>
+         <h2 className="text-2xl font-bold text-white mb-3">No Branch Selected</h2>
+         <p className="text-gray-400 max-w-md mx-auto mb-8">
+           Please select a restaurant branch from the sidebar to manage its menu items.
+         </p>
       </div>
     );
   }
@@ -544,7 +513,7 @@ export default function MenuItemsPage() {
                         <option value="" disabled>No categories found - please create one first</option>
                       ) : (
                         availableCategories.map(cat => (
-                          <option key={cat._id} value={cat.name}>{cat.name}</option>
+                          <option key={cat} value={cat}>{cat}</option>
                         ))
                       )}
                     </select>

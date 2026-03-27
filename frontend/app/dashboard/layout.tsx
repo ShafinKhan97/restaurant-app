@@ -13,7 +13,8 @@ import {
   FaBars,
   FaTimes,
   FaQrcode,
-  FaList
+  FaList,
+  FaCog
 } from 'react-icons/fa';
 
 export default function DashboardLayout({
@@ -23,17 +24,21 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading, isRestaurantsLoading, logout, restaurants, selectedRestaurantId, setSelectedRestaurantId } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
       router.push('/login');
-    } else if (!isLoading && user && user.role === 'super_admin') {
-      router.push('/superadmin');
+    } else if (!isLoading && !isRestaurantsLoading && user) {
+      if (user.role === 'super_admin') {
+        router.push('/superadmin');
+      } else if (user.role === 'restaurant_admin' && restaurants.length === 0 && pathname !== '/dashboard/restaurants/new') {
+        router.push('/dashboard/restaurants/new');
+      }
     }
-  }, [user, isLoading, router]);
+  }, [user, isLoading, isRestaurantsLoading, router, restaurants, pathname]);
 
   if (isLoading || !user || user.role === 'super_admin') {
     return (
@@ -64,11 +69,21 @@ export default function DashboardLayout({
     );
   }
 
-  const navigation = [
+  const selectedRestaurant = restaurants.find(r => r._id === selectedRestaurantId);
+
+  const mainNavigation = [
     { name: 'Overview', href: '/dashboard', icon: FaChartPie },
+    { name: 'Add Branch', href: '/dashboard/restaurants/new', icon: FaUtensils },
+  ];
+
+  const branchNavigation = [
     { name: 'Categories', href: '/dashboard/categories', icon: FaList },
     { name: 'Menu Items', href: '/dashboard/items', icon: FaUtensils },
     { name: 'QR Code', href: '/dashboard/qrcode', icon: FaQrcode },
+  ];
+
+  const bottomNavigation = [
+    { name: 'Settings', href: '/dashboard/settings', icon: FaCog },
     { name: 'Admin Profile', href: '/dashboard/profile', icon: FaUser },
   ];
 
@@ -84,7 +99,7 @@ export default function DashboardLayout({
         />
       )}
 
-      {/* Sidebar - Fixed and not scrollable internally if content is small, but flex-col */}
+      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-brand-surface border-r border-brand-border transform transition-transform duration-300 ease-in-out md:static md:translate-x-0 flex flex-col ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
@@ -100,10 +115,37 @@ export default function DashboardLayout({
           </Link>
         </div>
 
+        {/* Branch Selector Section */}
+        <div className="px-4 py-4 border-b border-brand-border bg-brand-base/50">
+          <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2 px-2">
+            Managing Branch
+          </label>
+          {restaurants.length > 0 ? (
+            <select
+              value={selectedRestaurantId || ''}
+              onChange={(e) => setSelectedRestaurantId(e.target.value)}
+              className="w-full bg-brand-surface border border-brand-border text-white text-sm rounded-lg p-2.5 focus:ring-primary focus:border-primary outline-none transition-all"
+            >
+              <option value="" disabled>Select a branch</option>
+              {restaurants.map((res) => (
+                <option key={res._id} value={res._id}>
+                  {res.address || res.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <Link 
+              href="/dashboard/restaurants/new"
+              className="block px-2 text-xs text-primary hover:text-primary-hover font-medium underline"
+            >
+              + Create your first branch
+            </Link>
+          )}
+        </div>
+
         {/* Navigation Links */}
-        <nav className="flex-1 py-6 px-4 space-y-2">
-          {navigation.map((item) => {
-            // Exact match for dashboard, startsWith for others
+        <nav className="flex-1 py-4 px-4 space-y-1 overflow-y-auto">
+          {mainNavigation.map((item) => {
             const isActive = item.href === '/dashboard' 
               ? pathname === item.href 
               : pathname?.startsWith(item.href);
@@ -113,13 +155,61 @@ export default function DashboardLayout({
                 key={item.name}
                 href={item.href}
                 onClick={() => setIsSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive 
                     ? 'bg-primary/10 text-primary border border-primary/20' 
                     : 'text-gray-400 hover:text-white hover:bg-brand-elevated'
                 }`}
               >
-                <item.icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-gray-500'}`} />
+                <item.icon className="w-4 h-4" />
+                {item.name}
+              </Link>
+            );
+          })}
+
+          {selectedRestaurantId && (
+            <>
+              <div className="pt-4 pb-1">
+                <p className="px-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Restaurant Management</p>
+              </div>
+              {branchNavigation.map((item) => {
+                const isActive = pathname?.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={() => setIsSidebarOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive 
+                        ? 'bg-primary/10 text-primary border border-primary/20' 
+                        : 'text-gray-400 hover:text-white hover:bg-brand-elevated'
+                    }`}
+                  >
+                    <item.icon className="w-4 h-4" />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </>
+          )}
+
+          <div className="pt-4 pb-1">
+            <p className="px-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Account</p>
+          </div>
+          {bottomNavigation.map((item) => {
+            const isActive = pathname?.startsWith(item.href);
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => setIsSidebarOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isActive 
+                    ? 'bg-primary/10 text-primary border border-primary/20' 
+                    : 'text-gray-400 hover:text-white hover:bg-brand-elevated'
+                }`}
+              >
+                <item.icon className="w-4 h-4" />
                 {item.name}
               </Link>
             );
@@ -128,12 +218,6 @@ export default function DashboardLayout({
 
         {/* Bottom Profile / Logout Area */}
         <div className="p-4 border-t border-brand-border shrink-0">
-          {user && (
-            <div className="mb-4 px-2">
-              <p className="text-sm font-medium text-white truncate">{user.name || 'Admin User'}</p>
-              <p className="text-xs text-gray-500 truncate">{user.email}</p>
-            </div>
-          )}
           <button
             onClick={() => setShowSignOutConfirm(true)}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-500 hover:text-white hover:bg-red-500/20 transition-colors"
